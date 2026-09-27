@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Smart Indoor Garden</title>
+    <meta name="description" content="Monitor your indoor garden and water your plants remotely from any device." />
+    {% include "_head.html" %}
+    <link rel="preload" as="image" href="/static/assets/garden.webp" type="image/webp" fetchpriority="high" />
+  </head>
+  <body class="landing">
+    <div class="bg" aria-hidden="true">
+      <picture>
+        <source srcset="/static/assets/garden.webp" type="image/webp" />
+        <img class="bg-media" src="/static/assets/garden.jpg" alt="" width="1280" height="720" fetchpriority="high" decoding="async" />
+      </picture>
+      <div class="bg-shade"></div>
+    </div>
+
+    <div class="page">
+      {% set active = "home" %}
+      {% include "_header.html" %}
+
+      <main class="hero">
+        <div class="trust anim" style="--d: 0.05s">
+          <span class="trust-avatar a1" title="Raspberry Pi 3 B"><span><i class="fa-brands fa-raspberry-pi"></i></span></span>
+          <span class="trust-avatar a2" title="DHT11 temperature &amp; humidity"><span><i class="fa-solid fa-temperature-half"></i></span></span>
+          <span class="trust-avatar a3" title="HC-SR04 water level"><span><i class="fa-solid fa-droplet"></i></span></span>
+          <span class="trust-pill">Running on Raspberry Pi 3 B</span>
+        </div>
+
+        <h1 class="headline anim">
+          <span>Grow Smarter,</span>
+          <span>Water From Anywhere</span>
+        </h1>
+
+        <p class="subhead anim" style="--d: 0.28s">
+          Live temperature, humidity and water levels from your indoor garden,
+          plus one-tap watering from any device.
+        </p>
+
+        <a class="cta anim" href="/dashboard" style="--d: 0.4s">Open Dashboard</a>
+      </main>
+
+      <section class="stats" aria-label="Live garden readings">
+        <div class="stat anim" style="--d: 0.5s">
+          <span class="stat-icon" aria-hidden="true">T</span>
+          <span class="stat-value" data-key="temperature" data-suffix="°C" data-decimals="0">--</span>
+          <span class="stat-label">Temperature</span>
+        </div>
+        <div class="stat anim" style="--d: 0.58s">
+          <span class="stat-icon" aria-hidden="true">H</span>
+          <span class="stat-value" data-key="humidity" data-suffix="%" data-decimals="0">--</span>
+          <span class="stat-label">Humidity</span>
+        </div>
+        <div class="stat anim" style="--d: 0.66s">
+          <span class="stat-icon" aria-hidden="true">W</span>
+          <span class="stat-value" data-key="water_level" data-suffix="%" data-decimals="0">--</span>
+          <span class="stat-label">Water Tank</span>
+        </div>
+        <div class="stat anim" style="--d: 0.74s">
+          <span class="stat-icon" aria-hidden="true">#</span>
+          <span class="stat-value" data-key="waterings_today" data-suffix="" data-decimals="0">--</span>
+          <span class="stat-label">Waterings Today</span>
+        </div>
+      </section>
+    </div>
+
+    <script src="/static/main.js" defer></script>
+  </body>
+</html>

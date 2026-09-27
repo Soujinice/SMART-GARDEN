@@ -1,0 +1,25 @@
+<header class="header">
+  <a class="logo" href="/" aria-label="Smart Garden home">
+    <img src="/static/assets/logo.webp" alt="" width="52" height="52" />
+  </a>
+
+  <nav class="nav" aria-label="Main">
+    <a href="/" class="nav-link{% if active == 'home' %} is-active{% endif %}"{% if active == 'home' %} aria-current="page"{% endif %}>Home</a>
+    <a href="/dashboard" class="nav-link{% if active == 'dashboard' %} is-active{% endif %}"{% if active == 'dashboard' %} aria-current="page"{% endif %}>Dashboard</a>
+    <a href="/wiring" class="nav-link{% if active == 'wiring' %} is-active{% endif %}"{% if active == 'wiring' %} aria-current="page"{% endif %}>Wiring</a>
+  </nav>
+
+  <a class="sign-in" href="/dashboard#water">Water Now</a>
+
+  <button class="burger" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu">
+    <span></span><span></span><span></span>
+  </button>
+</header>
+
+<div class="menu-overlay" hidden></div>
+<nav class="mobile-menu" id="mobile-menu" aria-label="Mobile" hidden>
+  <a href="/" class="m-link{% if active == 'home' %} is-active{% endif %}" style="--i: 0">Home</a>
+  <a href="/dashboard" class="m-link{% if active == 'dashboard' %} is-active{% endif %}" style="--i: 1">Dashboard</a>
+  <a href="/wiring" class="m-link{% if active == 'wiring' %} is-active{% endif %}" style="--i: 2">Wiring</a>
+  <a href="/dashboard#water" class="m-sign-in" style="--i: 3">Water Now</a>
+</nav>

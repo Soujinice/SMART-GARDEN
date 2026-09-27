@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Dashboard · Smart Indoor Garden</title>
+    {% include "_head.html" %}
+    <link rel="stylesheet" href="/static/app.css" />
+  </head>
+  <body class="app">
+    <div class="bg bg-fixed" aria-hidden="true">
+      <picture>
+        <source srcset="/static/assets/garden.webp" type="image/webp" />
+        <img class="bg-media" src="/static/assets/garden.jpg" alt="" width="1280" height="720" decoding="async" />
+      </picture>
+      <div class="bg-shade bg-shade-strong"></div>
+    </div>
+
+    <div class="app-page">
+      {% set active = "dashboard" %}
+      {% include "_header.html" %}
+
+      <main class="app-main" id="dash"
+        data-temp-min="{{ cfg.TEMP_RANGE_C[0] }}" data-temp-max="{{ cfg.TEMP_RANGE_C[1] }}"
+        data-hum-min="{{ cfg.HUMIDITY_RANGE[0] }}" data-hum-max="{{ cfg.HUMIDITY_RANGE[1] }}"
+        data-low-water="{{ cfg.LOW_WATER_PERCENT }}">
+        <div class="status anim" id="status" data-level="warn" style="--d: 0.05s">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span class="status-text" id="status-text">Connecting to garden…</span>
+          <span class="status-meta" id="status-meta"></span>
+        </div>
+
+        <section class="readings" aria-label="Live readings">
+          <article class="reading anim" style="--d: 0.12s">
+            <div class="reading-head"><i class="fa-solid fa-temperature-half" aria-hidden="true"></i> Temperature</div>
+            <div class="reading-value"><span id="temperature">--</span><small>°C</small></div>
+            <div class="reading-hint" id="temp-hint">Ideal {{ cfg.TEMP_RANGE_C[0]|int }}–{{ cfg.TEMP_RANGE_C[1]|int }} °C</div>
+          </article>
+
+          <article class="reading anim" style="--d: 0.18s">
+            <div class="reading-head"><i class="fa-solid fa-cloud-rain" aria-hidden="true"></i> Humidity</div>
+            <div class="reading-value"><span id="humidity">--</span><small>%</small></div>
+            <div class="reading-hint" id="hum-hint">Ideal {{ cfg.HUMIDITY_RANGE[0]|int }}–{{ cfg.HUMIDITY_RANGE[1]|int }} %</div>
+          </article>
+
+          <article class="reading anim" style="--d: 0.24s">
+            <div class="reading-head"><i class="fa-solid fa-droplet" aria-hidden="true"></i> Water Tank</div>
+            <div class="reading-value"><span id="water_level">--</span><small>%</small></div>
+            <div class="bar" aria-hidden="true"><span id="tank-bar"></span></div>
+          </article>
+        </section>
+
+        <section class="water anim" id="water" aria-labelledby="water-title" style="--d: 0.32s">
+          <div class="water-info">
+            <h2 id="water-title">Water plants</h2>
+            <p id="water-meta">Last watered: --</p>
+          </div>
+
+          <div class="water-controls">
+            <div class="chips" role="radiogroup" aria-label="Watering time">
+              <button type="button" class="chip" role="radio" aria-checked="false" data-seconds="3">3 s</button>
+              <button type="button" class="chip" role="radio" aria-checked="true" data-seconds="5">5 s</button>
+              <button type="button" class="chip" role="radio" aria-checked="false" data-seconds="10">10 s</button>
+            </div>
+            <button type="button" class="water-btn" id="water-btn">
+              <span class="water-btn-fill" id="water-fill"></span>
+              <span class="water-btn-label" id="water-label"><i class="fa-solid fa-droplet" aria-hidden="true"></i> Water Now</span>
+            </button>
+          </div>
+          <p class="water-msg" id="water-msg" role="status" aria-live="polite"></p>
+        </section>
+      </main>
+    </div>
+
+    <script src="/static/main.js" defer></script>
+    <script src="/static/dashboard.js" defer></script>
+  </body>
+</html>
