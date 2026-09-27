@@ -6,66 +6,117 @@
     <link rel="stylesheet" href="/static/app.css" />
   </head>
   <body class="app">
-    <div class="bg bg-fixed" aria-hidden="true">
-      <picture>
-        <source srcset="/static/assets/garden.webp" type="image/webp" />
-        <img class="bg-media" src="/static/assets/garden.jpg" alt="" width="1280" height="720" decoding="async" />
-      </picture>
-      <div class="bg-shade bg-shade-strong"></div>
-    </div>
+    {% include "_app_bg.html" %}
 
     <div class="app-page">
       {% set active = "dashboard" %}
       {% include "_header.html" %}
 
-      <main class="app-main" id="dash"
-        data-temp-min="{{ cfg.TEMP_RANGE_C[0] }}" data-temp-max="{{ cfg.TEMP_RANGE_C[1] }}"
-        data-hum-min="{{ cfg.HUMIDITY_RANGE[0] }}" data-hum-max="{{ cfg.HUMIDITY_RANGE[1] }}"
-        data-low-water="{{ cfg.LOW_WATER_PERCENT }}">
+      <main class="app-main" id="dash" data-max-seconds="{{ cfg.WATER_MAX_SECONDS }}">
         <div class="status anim" id="status" data-level="warn" style="--d: 0.05s">
           <span class="status-dot" aria-hidden="true"></span>
           <span class="status-text" id="status-text">Connecting to garden…</span>
           <span class="status-meta" id="status-meta"></span>
         </div>
 
-        <section class="readings" aria-label="Live readings">
-          <article class="reading anim" style="--d: 0.12s">
-            <div class="reading-head"><i class="fa-solid fa-temperature-half" aria-hidden="true"></i> Temperature</div>
-            <div class="reading-value"><span id="temperature">--</span><small>°C</small></div>
-            <div class="reading-hint" id="temp-hint">Ideal {{ cfg.TEMP_RANGE_C[0]|int }}–{{ cfg.TEMP_RANGE_C[1]|int }} °C</div>
+        <!-- Live gauges -->
+        <section class="gauges" aria-label="Live readings">
+          <article class="gauge-card anim" style="--d: 0.1s" data-gauge="moisture" data-min="0" data-max="100" data-unit="%">
+            <div class="gauge">
+              <svg viewBox="0 0 120 120" aria-hidden="true">
+                <circle class="g-track" cx="60" cy="60" r="50" />
+                <circle class="g-value" cx="60" cy="60" r="50" />
+                <line class="g-mark" x1="60" y1="4" x2="60" y2="18" />
+              </svg>
+              <div class="gauge-center"><span class="gauge-num">--</span><small>%</small></div>
+            </div>
+            <div class="gauge-label"><i class="fa-solid fa-seedling" aria-hidden="true"></i> Soil Moisture</div>
+            <div class="gauge-hint">--</div>
           </article>
 
-          <article class="reading anim" style="--d: 0.18s">
-            <div class="reading-head"><i class="fa-solid fa-cloud-rain" aria-hidden="true"></i> Humidity</div>
-            <div class="reading-value"><span id="humidity">--</span><small>%</small></div>
-            <div class="reading-hint" id="hum-hint">Ideal {{ cfg.HUMIDITY_RANGE[0]|int }}–{{ cfg.HUMIDITY_RANGE[1]|int }} %</div>
+          <article class="gauge-card anim" style="--d: 0.16s" data-gauge="temperature" data-min="0" data-max="45" data-unit="°C">
+            <div class="gauge">
+              <svg viewBox="0 0 120 120" aria-hidden="true">
+                <circle class="g-track" cx="60" cy="60" r="50" />
+                <circle class="g-band" cx="60" cy="60" r="50" />
+                <circle class="g-value" cx="60" cy="60" r="50" />
+              </svg>
+              <div class="gauge-center"><span class="gauge-num">--</span><small>°C</small></div>
+            </div>
+            <div class="gauge-label"><i class="fa-solid fa-temperature-half" aria-hidden="true"></i> Temperature</div>
+            <div class="gauge-hint">--</div>
           </article>
 
-          <article class="reading anim" style="--d: 0.24s">
-            <div class="reading-head"><i class="fa-solid fa-droplet" aria-hidden="true"></i> Water Tank</div>
-            <div class="reading-value"><span id="water_level">--</span><small>%</small></div>
-            <div class="bar" aria-hidden="true"><span id="tank-bar"></span></div>
+          <article class="gauge-card anim" style="--d: 0.22s" data-gauge="humidity" data-min="0" data-max="100" data-unit="%">
+            <div class="gauge">
+              <svg viewBox="0 0 120 120" aria-hidden="true">
+                <circle class="g-track" cx="60" cy="60" r="50" />
+                <circle class="g-band" cx="60" cy="60" r="50" />
+                <circle class="g-value" cx="60" cy="60" r="50" />
+              </svg>
+              <div class="gauge-center"><span class="gauge-num">--</span><small>%</small></div>
+            </div>
+            <div class="gauge-label"><i class="fa-solid fa-cloud-rain" aria-hidden="true"></i> Humidity</div>
+            <div class="gauge-hint">--</div>
+          </article>
+
+          <article class="gauge-card anim" style="--d: 0.28s" data-gauge="water_level">
+            <div class="tank" aria-hidden="true">
+              <div class="tank-fill" id="tank-fill">
+                <svg class="wave" viewBox="0 0 240 20" preserveAspectRatio="none"><path d="M0 10 Q30 0 60 10 T120 10 T180 10 T240 10 V20 H0Z" /></svg>
+              </div>
+              <div class="gauge-center"><span class="gauge-num">--</span><small>%</small></div>
+            </div>
+            <div class="gauge-label"><i class="fa-solid fa-bucket" aria-hidden="true"></i> Water Tank</div>
+            <div class="gauge-hint">--</div>
           </article>
         </section>
 
-        <section class="water anim" id="water" aria-labelledby="water-title" style="--d: 0.32s">
-          <div class="water-info">
-            <h2 id="water-title">Water plants</h2>
-            <p id="water-meta">Last watered: --</p>
-          </div>
-
-          <div class="water-controls">
+        <div class="dash-grid">
+          <!-- Remote trigger -->
+          <section class="card water anim" id="water" aria-labelledby="water-title" style="--d: 0.34s">
+            <div class="card-head">
+              <h2 id="water-title">Water now</h2>
+              <span class="pill-note" id="water-meta">--</span>
+            </div>
             <div class="chips" role="radiogroup" aria-label="Watering time">
               <button type="button" class="chip" role="radio" aria-checked="false" data-seconds="3">3 s</button>
               <button type="button" class="chip" role="radio" aria-checked="true" data-seconds="5">5 s</button>
               <button type="button" class="chip" role="radio" aria-checked="false" data-seconds="10">10 s</button>
+              <button type="button" class="chip" role="radio" aria-checked="false" data-seconds="15">15 s</button>
             </div>
-            <button type="button" class="water-btn" id="water-btn">
-              <span class="water-btn-fill" id="water-fill"></span>
-              <span class="water-btn-label" id="water-label"><i class="fa-solid fa-droplet" aria-hidden="true"></i> Water Now</span>
-            </button>
+            <div class="water-actions">
+              <button type="button" class="water-btn" id="water-btn">
+                <span class="water-btn-fill" id="water-fill"></span>
+                <span class="water-btn-label" id="water-label"><i class="fa-solid fa-droplet" aria-hidden="true"></i> Water Now</span>
+              </button>
+              <button type="button" class="stop-btn" id="stop-btn" hidden aria-label="Stop the pump"><i class="fa-solid fa-stop" aria-hidden="true"></i> Stop</button>
+            </div>
+            <p class="water-msg" id="water-msg" role="status"></p>
+          </section>
+
+          <!-- Automation summary -->
+          <section class="card auto-card anim" aria-labelledby="auto-title" style="--d: 0.4s">
+            <div class="card-head">
+              <h2 id="auto-title">Automatic watering</h2>
+              <label class="switch" title="Water automatically when the soil is dry">
+                <input type="checkbox" id="auto-toggle" />
+                <span></span>
+              </label>
+            </div>
+            <p class="auto-line" id="auto-line">--</p>
+            <p class="auto-line" id="schedule-line">--</p>
+            <a class="text-link" href="/automation">Change settings <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
+          </section>
+        </div>
+
+        <!-- Recent activity -->
+        <section class="card anim" aria-labelledby="recent-title" style="--d: 0.46s">
+          <div class="card-head">
+            <h2 id="recent-title">Recent watering</h2>
+            <a class="text-link" href="/history#log">Full log <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
           </div>
-          <p class="water-msg" id="water-msg" role="status" aria-live="polite"></p>
+          <ul class="events" id="recent"><li class="events-empty">No waterings yet</li></ul>
         </section>
       </main>
     </div>

@@ -162,6 +162,34 @@ def distance_to_percent(distance):
 
 
 # ---------------------------------------------------------------------------
+# Soil moisture: capacitive sensor -> ADS1115 ADC (I2C)
+# ---------------------------------------------------------------------------
+class MoistureADS1115:
+    def __init__(self, address, channel):
+        import smbus  # python3-smbus, pre-installed on Raspberry Pi OS
+        self.bus = smbus.SMBus(1)
+        self.address = address
+        # single-shot, AINx vs GND, +/-4.096 V range, 128 samples/s, comparator off
+        self.cfg = 0x8000 | ((4 + channel) << 12) | 0x0200 | 0x0100 | 0x0080 | 0x0003
+
+    def _raw(self):
+        self.bus.write_i2c_block_data(self.address, 0x01, [self.cfg >> 8, self.cfg & 0xFF])
+        time.sleep(0.01)
+        hi, lo = self.bus.read_i2c_block_data(self.address, 0x00, 2)
+        value = (hi << 8) | lo
+        return value - 65536 if value > 0x7FFF else value
+
+    def raw(self):
+        return int(statistics.median(self._raw() for _ in range(5)))
+
+
+def raw_to_moisture_percent(raw):
+    dry, wet = config.MOISTURE_DRY_RAW, config.MOISTURE_WET_RAW
+    pct = (dry - raw) / (dry - wet) * 100
+    return round(max(0.0, min(100.0, pct)))
+
+
+# ---------------------------------------------------------------------------
 # Pump relay (optional)
 # ---------------------------------------------------------------------------
 class PumpRelay:
@@ -194,7 +222,20 @@ class Garden:
             self.sonar = Ultrasonic(config.ULTRASONIC_TRIG, config.ULTRASONIC_ECHO)
             if config.PUMP_RELAY_PIN is not None:
                 self.pump = PumpRelay(config.PUMP_RELAY_PIN, config.RELAY_ACTIVE_LOW)
-        self._sim = {"t": 24.0, "h": 55.0, "d": 8.0}
+        self.moisture_sensor = None
+        if config.MOISTURE_SENSOR == "ads1115":
+            if self.simulated:
+                self.moisture_sensor = "sim"
+            else:
+                try:
+                    self.moisture_sensor = MoistureADS1115(config.ADS1115_ADDRESS,
+                                                           config.ADS1115_CHANNEL)
+                    self.moisture_sensor.raw()   # probe once: fails fast if not wired
+                except Exception as exc:
+                    print("Moisture sensor not available (%s) - continuing without it" % exc)
+                    self.moisture_sensor = None
+        self._stop = threading.Event()
+        self._sim = {"t": 24.0, "h": 55.0, "d": 8.0, "m": 48.0}
 
     # -- readings -----------------------------------------------------------
     def read_climate(self):
@@ -207,30 +248,53 @@ class Garden:
 
     def read_tank_distance(self):
         if self.simulated:
-            self._sim["d"] = min(config.TANK_EMPTY_DISTANCE_CM,
-                                 self._sim["d"] + 0.01)
             return round(self._sim["d"], 1)
         return self.sonar.distance_cm()
+
+    @property
+    def has_moisture(self):
+        return self.moisture_sensor is not None
+
+    def read_moisture(self):
+        if self.moisture_sensor is None:
+            return None
+        if self.simulated:
+            self._sim["m"] = max(5.0, self._sim["m"] - random.uniform(0, 0.05))
+            return round(self._sim["m"])
+        try:
+            return raw_to_moisture_percent(self.moisture_sensor.raw())
+        except OSError:
+            return None   # loose I2C wire - try again next cycle
 
     # -- pump -----------------------------------------------------------------
     @property
     def has_pump(self):
         return self.pump is not None or self.simulated
 
+    def stop_pump(self):
+        self._stop.set()
+
     def run_pump(self, seconds):
-        """Blocking: switch the pump on for `seconds`, always switch off after."""
+        """Blocking: pump on for `seconds` (or until stop_pump()), always off after.
+        Returns the number of seconds it actually ran."""
         with self._lock:
+            self._stop.clear()
+            start = time.monotonic()
             if self.pump is None:
                 if self.simulated:
-                    time.sleep(seconds)
-                    self._sim["d"] = max(config.TANK_FULL_DISTANCE_CM,
-                                         self._sim["d"] - 0.3 * seconds)
-                return
+                    self._stop.wait(seconds)
+                    ran = time.monotonic() - start
+                    self._sim["d"] = min(config.TANK_EMPTY_DISTANCE_CM,
+                                         self._sim["d"] + 0.15 * ran)
+                    self._sim["m"] = min(90.0, self._sim["m"] + 4 * ran)
+                    return ran
+                return 0
             try:
                 self.pump.on()
-                time.sleep(seconds)
+                self._stop.wait(seconds)
             finally:
                 self.pump.off()
+            return time.monotonic() - start
 
     def cleanup(self):
         if not ON_PI:

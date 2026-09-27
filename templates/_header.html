@@ -6,7 +6,8 @@
   <nav class="nav" aria-label="Main">
     <a href="/" class="nav-link{% if active == 'home' %} is-active{% endif %}"{% if active == 'home' %} aria-current="page"{% endif %}>Home</a>
     <a href="/dashboard" class="nav-link{% if active == 'dashboard' %} is-active{% endif %}"{% if active == 'dashboard' %} aria-current="page"{% endif %}>Dashboard</a>
-    <a href="/wiring" class="nav-link{% if active == 'wiring' %} is-active{% endif %}"{% if active == 'wiring' %} aria-current="page"{% endif %}>Wiring</a>
+    <a href="/history" class="nav-link{% if active == 'history' %} is-active{% endif %}"{% if active == 'history' %} aria-current="page"{% endif %}>History</a>
+    <a href="/automation" class="nav-link{% if active == 'automation' %} is-active{% endif %}"{% if active == 'automation' %} aria-current="page"{% endif %}>Automation</a>
   </nav>
 
   <a class="sign-in" href="/dashboard#water">Water Now</a>
@@ -20,6 +21,9 @@
 <nav class="mobile-menu" id="mobile-menu" aria-label="Mobile" hidden>
   <a href="/" class="m-link{% if active == 'home' %} is-active{% endif %}" style="--i: 0">Home</a>
   <a href="/dashboard" class="m-link{% if active == 'dashboard' %} is-active{% endif %}" style="--i: 1">Dashboard</a>
-  <a href="/wiring" class="m-link{% if active == 'wiring' %} is-active{% endif %}" style="--i: 2">Wiring</a>
-  <a href="/dashboard#water" class="m-sign-in" style="--i: 3">Water Now</a>
+  <a href="/history" class="m-link{% if active == 'history' %} is-active{% endif %}" style="--i: 2">History</a>
+  <a href="/automation" class="m-link{% if active == 'automation' %} is-active{% endif %}" style="--i: 3">Automation</a>
+  <a href="/dashboard#water" class="m-sign-in" style="--i: 4">Water Now</a>
 </nav>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>

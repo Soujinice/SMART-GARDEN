@@ -6,68 +6,196 @@ Then open http://<raspberry-pi-ip>:5000 on any device on the same Wi-Fi.
 """
 
 import atexit
+import csv
+import io
+import math
+import random
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, Response, jsonify, render_template, request
 
 import config
+import storage
 from sensors import Garden, distance_to_percent
 
 app = Flask(__name__)
+storage.init_db()
+storage.load_settings()
 garden = Garden()
 
 state_lock = threading.Lock()
 state = {
     "temperature": None,
     "humidity": None,
+    "moisture": None,
     "tank_distance": None,
     "water_level": None,
     "updated": None,
-    "watering": False,
-    "last_watered": None,
-    "waterings": [],   # timestamps of today's waterings
+    "watering": None,        # {"trigger", "seconds", "started"} while the pump runs
 }
+last = storage.last_watering()
+last_watered = last["ts"] if last and last["completed"] else None
 
 
+# ---------------------------------------------------------------------------
+# Watering (shared by the button, the moisture rule and the schedules)
+# ---------------------------------------------------------------------------
+def start_watering(seconds, trigger):
+    """Starts the pump in the background. Returns None, or an error message."""
+    global last_watered
+    settings = storage.get_settings()
+    seconds = max(config.WATER_MIN_SECONDS, min(config.WATER_MAX_SECONDS, int(seconds)))
+    with state_lock:
+        if state["watering"]:
+            return "Already watering"
+        if last_watered and time.time() - last_watered < config.WATER_COOLDOWN_SECONDS:
+            wait = int(config.WATER_COOLDOWN_SECONDS - (time.time() - last_watered)) + 1
+            return "Please wait %d s before watering again" % wait
+        level = state["water_level"]
+        if level is not None and level < settings["low_water_percent"]:
+            return "Tank too low - refill before watering"
+        if not garden.has_pump:
+            return "No pump connected (see config.py)"
+        moisture_before = state["moisture"]
+        state["watering"] = {"trigger": trigger, "seconds": seconds, "started": time.time()}
+
+    def run():
+        global last_watered
+        started = time.time()
+        ran = seconds
+        try:
+            ran = garden.run_pump(seconds)
+        finally:
+            stopped = ran < seconds - 0.5
+            with state_lock:
+                state["watering"] = None
+                last_watered = time.time()
+            storage.add_watering(started, ran, trigger, moisture_before, level,
+                                 completed=True, note="Stopped early" if stopped else "")
+
+    threading.Thread(target=run, daemon=True).start()
+    return None
+
+
+def log_skipped(trigger, reason):
+    with state_lock:
+        m, w = state["moisture"], state["water_level"]
+    storage.add_watering(time.time(), 0, trigger, m, w, completed=False, note=reason)
+
+
+# ---------------------------------------------------------------------------
+# Automation
+# ---------------------------------------------------------------------------
+fired_schedules = set()   # "YYYY-MM-DD HH:MM" already handled
+last_auto_check = 0
+
+
+def run_automation():
+    global last_auto_check
+    s = storage.get_settings()
+    now = datetime.now()
+
+    # 1) Fixed daily schedules
+    for item in s["schedules"]:
+        key = now.strftime("%Y-%m-%d ") + item["time"]
+        if item["enabled"] and now.strftime("%H:%M") == item["time"] and key not in fired_schedules:
+            fired_schedules.add(key)
+            error = start_watering(item["seconds"], "schedule")
+            if error:
+                log_skipped("schedule", error)
+
+    # 2) Moisture threshold (once a minute is plenty)
+    if not (s["auto_enabled"] and garden.has_moisture) or time.time() - last_auto_check < 60:
+        return
+    last_auto_check = time.time()
+    with state_lock:
+        moisture, busy = state["moisture"], state["watering"]
+    if moisture is None or busy or moisture >= s["moisture_threshold"]:
+        return
+    if last_watered and time.time() - last_watered < s["auto_min_gap_minutes"] * 60:
+        return   # give the last watering time to soak in
+    error = start_watering(s["auto_seconds"], "auto")
+    if error and "wait" not in error:
+        log_skipped("auto", error)
+        last_auto_check = time.time() + 30 * 60   # don't log the same problem every minute
+
+
+def next_schedule(s):
+    now = datetime.now()
+    upcoming = []
+    for item in s["schedules"]:
+        if not item["enabled"]:
+            continue
+        hh, mm = map(int, item["time"].split(":"))
+        t = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+        if t <= now:
+            t += timedelta(days=1)
+        upcoming.append(t)
+    return min(upcoming).timestamp() if upcoming else None
+
+
+# ---------------------------------------------------------------------------
+# Background sensor loop
+# ---------------------------------------------------------------------------
 def sensor_loop():
-    """Reads the sensors in the background so web requests never wait on hardware."""
+    last_log = 0
+    last_prune = 0
     while True:
         climate = garden.read_climate()
         distance = garden.read_tank_distance()
+        moisture = garden.read_moisture()
+        now = time.time()
         with state_lock:
             if climate:
                 state["temperature"], state["humidity"] = climate
             if distance is not None:
                 state["tank_distance"] = distance
                 state["water_level"] = distance_to_percent(distance)
-            state["updated"] = time.time()
+            if moisture is not None:
+                state["moisture"] = moisture
+            state["updated"] = now
+            snap = dict(state)
+
+        if now - last_log >= config.LOG_INTERVAL_SECONDS and snap["temperature"] is not None:
+            last_log = now
+            storage.add_reading(now, snap["temperature"], snap["humidity"],
+                                snap["moisture"], snap["water_level"])
+        if now - last_prune > 86400:
+            last_prune = now
+            storage.prune(config.KEEP_DAYS)
+        try:
+            run_automation()
+        except Exception as exc:   # never let automation kill the sensor loop
+            print("Automation error:", exc)
         time.sleep(config.SENSOR_INTERVAL_SECONDS)
 
 
-def health(s):
-    """Returns (level, message) - level is ok / warn / alert."""
-    if s["temperature"] is None or s["water_level"] is None:
-        return "warn", "Waiting for sensor data"
-    if s["water_level"] < config.LOW_WATER_PERCENT:
-        return "alert", "Water tank low - please refill"
-    lo, hi = config.TEMP_RANGE_C
-    if s["temperature"] > hi:
-        return "warn", "Too warm for the plants"
-    if s["temperature"] < lo:
-        return "warn", "Too cold for the plants"
-    lo, hi = config.HUMIDITY_RANGE
-    if s["humidity"] < lo:
-        return "warn", "Air is too dry"
-    if s["humidity"] > hi:
-        return "warn", "Air is too humid"
-    return "ok", "Plants are healthy"
-
-
-def today_count(stamps):
-    today = datetime.now().date()
-    return sum(1 for t in stamps if datetime.fromtimestamp(t).date() == today)
+def seed_demo_history():
+    """Simulation only: fills 7 days of believable history so the charts aren't empty."""
+    if not storage.is_empty():
+        return
+    now = time.time()
+    moisture, tank = 60.0, 95.0
+    for i in range(7 * 24 * 12, 0, -1):          # every 5 minutes, 7 days
+        ts = now - i * 300
+        hour = datetime.fromtimestamp(ts).hour + datetime.fromtimestamp(ts).minute / 60
+        temp = 23 + 3.5 * math.sin((hour - 9) / 24 * 2 * math.pi) + random.uniform(-0.4, 0.4)
+        hum = 55 - 8 * math.sin((hour - 9) / 24 * 2 * math.pi) + random.uniform(-1.5, 1.5)
+        moisture -= random.uniform(0.15, 0.3)
+        if moisture < 35:
+            storage.add_watering(ts, 5, "auto", round(moisture), round(tank))
+            moisture += 22
+            tank -= 6
+        if int(hour * 12) == 8 * 12:
+            storage.add_watering(ts, 5, "schedule", round(moisture), round(tank))
+            moisture += 20
+            tank -= 6
+        if tank < 30:
+            tank = 95.0
+        storage.add_reading(ts, round(temp, 1), round(hum), round(moisture, 1), round(tank))
+    storage.add_watering(now - 5400, 3, "manual", 41, round(tank))
 
 
 # ---------------------------------------------------------------------------
@@ -83,71 +211,68 @@ def dashboard():
     return render_template("dashboard.html", cfg=config)
 
 
-# Raspberry Pi 3 B 40-pin header: physical pin -> label
-HEADER = {
-    1: "3.3V", 2: "5V", 3: "GPIO2", 4: "5V", 5: "GPIO3", 6: "GND", 7: "GPIO4",
-    8: "GPIO14", 9: "GND", 10: "GPIO15", 11: "GPIO17", 12: "GPIO18", 13: "GPIO27",
-    14: "GND", 15: "GPIO22", 16: "GPIO23", 17: "3.3V", 18: "GPIO24", 19: "GPIO10",
-    20: "GND", 21: "GPIO9", 22: "GPIO25", 23: "GPIO11", 24: "GPIO8", 25: "GND",
-    26: "GPIO7", 27: "ID_SD", 28: "ID_SC", 29: "GPIO5", 30: "GND", 31: "GPIO6",
-    32: "GPIO12", 33: "GPIO13", 34: "GND", 35: "GPIO19", 36: "GPIO16", 37: "GPIO26",
-    38: "GPIO20", 39: "GND", 40: "GPIO21",
-}
+@app.route("/history")
+def history():
+    return render_template("history.html")
 
 
-def phys(bcm):
-    """BCM number -> physical header pin."""
-    return next(p for p, name in HEADER.items() if name == "GPIO%d" % bcm)
-
-
-def wiring_table():
-    parts = [
-        {"id": "dht", "name": "DHT11 (temperature & humidity)", "rows": [
-            ("VCC / +", 1, "3.3V power - not 5V, keeps DATA at a safe 3.3V"),
-            ("DATA / OUT", phys(config.DHT11_PIN), "Bare 4-pin sensor: add 10 k\u03a9 from DATA to VCC"),
-            ("GND / -", 6, "Ground"),
-        ]},
-        {"id": "sonar", "name": "HC-SR04 ultrasonic (water tank level)", "rows": [
-            ("VCC", 2, "5V power"),
-            ("TRIG", phys(config.ULTRASONIC_TRIG), "Direct connection is safe (Pi -> sensor)"),
-            ("ECHO", phys(config.ULTRASONIC_ECHO), "Through a voltage divider only - see below"),
-            ("GND", 14, "Ground (also the bottom of the 2 k\u03a9 resistor)"),
-        ]},
-    ]
-    if config.PUMP_RELAY_PIN is not None:
-        parts.append({"id": "relay", "name": "Relay module + pump (optional, for watering)", "rows": [
-            ("VCC", 4, "5V power for the relay coil"),
-            ("IN", phys(config.PUMP_RELAY_PIN), "Control signal"),
-            ("GND", 9, "Ground"),
-        ]})
-    used = {pin: part["id"] for part in parts for _, pin, _ in part["rows"]}
-    return parts, used
-
-
-@app.route("/wiring")
-def wiring():
-    parts, used = wiring_table()
-    return render_template("wiring.html", parts=parts, used=used, header=HEADER)
+@app.route("/automation")
+def automation():
+    return render_template("automation.html", cfg=config, has_moisture=garden.has_moisture)
 
 
 # ---------------------------------------------------------------------------
 # API
 # ---------------------------------------------------------------------------
+def health(s, settings):
+    """Returns (level, message) - level is ok / warn / alert."""
+    if s["temperature"] is None or s["water_level"] is None:
+        return "warn", "Waiting for sensor data"
+    if s["water_level"] < settings["low_water_percent"]:
+        return "alert", "Water tank low - please refill"
+    if s["moisture"] is not None and s["moisture"] < settings["moisture_threshold"]:
+        return "warn", "Soil is dry"
+    if s["temperature"] > settings["temp_max"]:
+        return "warn", "Too warm for the plants"
+    if s["temperature"] < settings["temp_min"]:
+        return "warn", "Too cold for the plants"
+    if s["humidity"] < settings["humidity_min"]:
+        return "warn", "Air is too dry"
+    if s["humidity"] > settings["humidity_max"]:
+        return "warn", "Air is too humid"
+    return "ok", "Plants are healthy"
+
+
+def start_of_today():
+    return datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+
+
 @app.route("/api/status")
 def api_status():
+    settings = storage.get_settings()
     with state_lock:
         s = dict(state)
-    level, message = health(s)
+    level, message = health(s, settings)
+    today = [w for w in storage.waterings_since(start_of_today()) if w["completed"]]
+    recent = storage.waterings_since(time.time() - 7 * 86400)[:4]
+    watering = s["watering"]
+    if watering:
+        watering = dict(watering, remaining=max(0, watering["started"] + watering["seconds"] - time.time()))
     return jsonify(
         temperature=s["temperature"],
         humidity=s["humidity"],
+        moisture=s["moisture"],
         water_level=s["water_level"],
-        tank_distance=s["tank_distance"],
         status=level,
         message=message,
-        watering=s["watering"],
-        last_watered=s["last_watered"],
-        waterings_today=today_count(s["waterings"]),
+        watering=watering,
+        last_watered=last_watered,
+        waterings_today=len(today),
+        water_used_today_ml=round(sum(w["seconds"] for w in today) * config.PUMP_ML_PER_SECOND),
+        recent=recent,
+        next_schedule=next_schedule(settings),
+        settings=settings,
+        has_moisture=garden.has_moisture,
         pump_connected=garden.has_pump,
         simulated=garden.simulated,
         updated=s["updated"],
@@ -161,39 +286,77 @@ def api_water():
         seconds = int(body.get("seconds", 5))
     except (TypeError, ValueError):
         return jsonify(ok=False, error="Invalid duration"), 400
-    seconds = max(config.WATER_MIN_SECONDS, min(config.WATER_MAX_SECONDS, seconds))
+    error = start_watering(seconds, "manual")
+    if error:
+        return jsonify(ok=False, error=error), 409
+    return jsonify(ok=True, seconds=max(config.WATER_MIN_SECONDS, min(config.WATER_MAX_SECONDS, seconds)))
 
-    with state_lock:
-        if state["watering"]:
-            return jsonify(ok=False, error="Already watering"), 409
-        last = state["last_watered"]
-        if last and time.time() - last < config.WATER_COOLDOWN_SECONDS:
-            wait = int(config.WATER_COOLDOWN_SECONDS - (time.time() - last))
-            return jsonify(ok=False, error="Please wait %ds before watering again" % wait), 429
-        level = state["water_level"]
-        if level is not None and level < config.LOW_WATER_PERCENT:
-            return jsonify(ok=False, error="Tank too low - refill before watering"), 409
-        if not garden.has_pump:
-            return jsonify(ok=False, error="No pump connected (see config.py)"), 409
-        state["watering"] = True
 
-    def run():
+@app.route("/api/stop", methods=["POST"])
+def api_stop():
+    garden.stop_pump()
+    return jsonify(ok=True)
+
+
+@app.route("/api/history")
+def api_history():
+    days = 7 if request.args.get("range") == "7d" else 1
+    since = time.time() - days * 86400
+    bucket = 1800 if days == 7 else 300
+    points = storage.readings_since(since, bucket)
+    for p in points:
+        for k in ("temperature", "humidity", "moisture", "water_level"):
+            if p[k] is not None:
+                p[k] = round(p[k], 1)
+    waterings = [w for w in storage.waterings_since(since) if w["completed"]]
+    return jsonify(points=points, waterings=waterings, since=since)
+
+
+@app.route("/api/log")
+def api_log():
+    try:
+        days = max(1, min(config.KEEP_DAYS, int(request.args.get("days", 7))))
+    except ValueError:
+        days = 7
+    events = storage.waterings_since(time.time() - days * 86400)
+    return jsonify(events=events, ml_per_second=config.PUMP_ML_PER_SECOND)
+
+
+@app.route("/api/log.csv")
+def api_log_csv():
+    events = storage.waterings_since(time.time() - config.KEEP_DAYS * 86400)
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["date", "time", "trigger", "seconds", "approx_ml", "soil_moisture_before_%",
+                "tank_before_%", "result"])
+    for e in events:
+        dt = datetime.fromtimestamp(e["ts"])
+        w.writerow([dt.strftime("%Y-%m-%d"), dt.strftime("%H:%M:%S"), e["trigger"], e["seconds"],
+                    round(e["seconds"] * config.PUMP_ML_PER_SECOND),
+                    e["moisture_before"], e["water_before"],
+                    e["note"] or ("Done" if e["completed"] else "Skipped")])
+    return Response(buf.getvalue(), mimetype="text/csv",
+                    headers={"Content-Disposition": "attachment; filename=watering-log.csv"})
+
+
+@app.route("/api/settings", methods=["GET", "POST"])
+def api_settings():
+    if request.method == "POST":
         try:
-            garden.run_pump(seconds)
-        finally:
-            with state_lock:
-                now = time.time()
-                state["watering"] = False
-                state["last_watered"] = now
-                state["waterings"] = [t for t in state["waterings"] if now - t < 86400] + [now]
-
-    threading.Thread(target=run, daemon=True).start()
-    return jsonify(ok=True, seconds=seconds)
+            s = storage.save_settings(request.get_json(silent=True) or {})
+        except (ValueError, KeyError, TypeError) as exc:
+            return jsonify(ok=False, error="Invalid setting: %s" % exc), 400
+        return jsonify(ok=True, settings=s)
+    return jsonify(storage.get_settings())
 
 
 atexit.register(garden.cleanup)
 
 if __name__ == "__main__":
+    if garden.simulated:
+        seed_demo_history()
+        last = storage.last_watering()
+        last_watered = last["ts"] if last else None
     threading.Thread(target=sensor_loop, daemon=True).start()
     print("Smart Garden running - open http://<your-pi-ip>:%d" % config.PORT)
     if garden.simulated:

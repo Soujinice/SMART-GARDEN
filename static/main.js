@@ -1,6 +1,90 @@
-/* Shared: mobile menu. Landing page: live stats with count-up. */
+/* Shared: helpers, toasts, mobile menu. Landing page: live stats with count-up. */
 (function () {
   "use strict";
+
+  // ---------------------------------------------------------------------
+  // Shared helpers (used by dashboard.js, history.js, automation.js)
+  // ---------------------------------------------------------------------
+  var SG = (window.SG = {});
+
+  SG.reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  SG.ago = function (ts) {
+    if (!ts) return "never";
+    var s = Math.max(0, Math.round(Date.now() / 1000 - ts));
+    if (s < 60) return s + " s ago";
+    if (s < 3600) return Math.round(s / 60) + " min ago";
+    if (s < 86400) return Math.round(s / 3600) + " h ago";
+    return Math.round(s / 86400) + " d ago";
+  };
+
+  SG.time = function (ts) {
+    return new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  };
+
+  SG.day = function (ts) {
+    var d = new Date(ts * 1000);
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+    var diff = Math.round((today - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
+    if (diff === 0) return "Today";
+    if (diff === 1) return "Yesterday";
+    return d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+  };
+
+  SG.triggers = {
+    manual: { label: "Manual", icon: "fa-hand-pointer" },
+    auto: { label: "Auto", icon: "fa-seedling" },
+    schedule: { label: "Schedule", icon: "fa-clock" }
+  };
+
+  SG.json = function (url, opts) {
+    return fetch(url, Object.assign({ cache: "no-store" }, opts || {})).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (!r.ok) throw new Error(j.error || "Request failed (" + r.status + ")");
+        return j;
+      });
+    });
+  };
+
+  SG.post = function (url, body) {
+    return SG.json(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {})
+    });
+  };
+
+  // Smoothly animates a number inside an element.
+  SG.tween = function (el, to, opts) {
+    opts = opts || {};
+    var dec = opts.decimals || 0;
+    var from = parseFloat(el.dataset.current);
+    el.dataset.current = to;
+    if (isNaN(from) || SG.reduceMotion) { el.textContent = to.toFixed(dec); return; }
+    if (from === to) return;
+    var start = performance.now(), dur = opts.duration || 700;
+    requestAnimationFrame(function frame(now) {
+      var t = Math.min(1, (now - start) / dur);
+      var e = 1 - Math.pow(1 - t, 3);
+      el.textContent = (from + (to - from) * e).toFixed(dec);
+      if (t < 1) requestAnimationFrame(frame);
+    });
+  };
+
+  SG.toast = function (msg, type) {
+    var box = document.getElementById("toasts");
+    if (!box) return;
+    var el = document.createElement("div");
+    el.className = "toast toast-" + (type || "info");
+    var icon = type === "error" ? "fa-circle-exclamation" : type === "ok" ? "fa-circle-check" : "fa-circle-info";
+    el.innerHTML = '<i class="fa-solid ' + icon + '" aria-hidden="true"></i><span></span>';
+    el.querySelector("span").textContent = msg;
+    box.appendChild(el);
+    setTimeout(function () {
+      el.classList.add("is-leaving");
+      setTimeout(function () { el.remove(); }, 350);
+    }, 3600);
+  };
 
   // ---------------------------------------------------------------------
   // Mobile menu
@@ -66,7 +150,20 @@
     }, delay);
   }
 
+  function applyFallback(data) {
+    if (data.has_moisture) return;
+    document.querySelectorAll(".stat[data-fallback]").forEach(function (stat) {
+      var v = stat.querySelector(".stat-value");
+      if (v.dataset.key === stat.dataset.fallback) return;
+      v.dataset.key = stat.dataset.fallback;
+      v.dataset.suffix = "";
+      stat.querySelector(".stat-label").textContent = stat.dataset.fallbackLabel;
+      stat.querySelector(".stat-icon").textContent = stat.dataset.fallbackIcon;
+    });
+  }
+
   function render(data, first) {
+    applyFallback(data);
     values.forEach(function (el, i) {
       var v = data[el.dataset.key];
       if (v === null || v === undefined) { el.textContent = "--"; return; }

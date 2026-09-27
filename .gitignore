@@ -1,3 +1,7 @@
 __pycache__/
 *.pyc
 .venv/
+garden.db
+garden.db-journal
+settings.json
+settings.json.tmp

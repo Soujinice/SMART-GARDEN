@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Automation · Smart Indoor Garden</title>
+    {% include "_head.html" %}
+    <link rel="stylesheet" href="/static/app.css" />
+  </head>
+  <body class="app">
+    {% include "_app_bg.html" %}
+
+    <div class="app-page">
+      {% set active = "automation" %}
+      {% include "_header.html" %}
+
+      <main class="app-main" id="auto" data-has-moisture="{{ 'true' if has_moisture else 'false' }}"
+        data-min-seconds="{{ cfg.WATER_MIN_SECONDS }}" data-max-seconds="{{ cfg.WATER_MAX_SECONDS }}">
+        <div class="page-title anim" style="--d: 0.05s">
+          <h1>Automation</h1>
+          <p>Let the garden water itself.</p>
+        </div>
+
+        <!-- Plant presets -->
+        <section class="card anim" style="--d: 0.1s" aria-labelledby="preset-title">
+          <div class="card-head">
+            <h2 id="preset-title">Plant type</h2>
+            <span class="pill-note">Fills in good starting values</span>
+          </div>
+          <div class="presets" id="presets">
+            <button type="button" class="preset" data-preset="herbs"><i class="fa-solid fa-leaf"></i><b>Herbs</b><small>Basil, mint</small></button>
+            <button type="button" class="preset" data-preset="greens"><i class="fa-solid fa-seedling"></i><b>Leafy greens</b><small>Lettuce, spinach</small></button>
+            <button type="button" class="preset" data-preset="fruiting"><i class="fa-solid fa-apple-whole"></i><b>Fruiting</b><small>Tomato, pepper</small></button>
+            <button type="button" class="preset" data-preset="succulents"><i class="fa-solid fa-sun"></i><b>Succulents</b><small>Cactus, aloe</small></button>
+          </div>
+        </section>
+
+        <!-- Moisture rule -->
+        <section class="card anim" style="--d: 0.16s" aria-labelledby="rule-title">
+          <div class="card-head">
+            <h2 id="rule-title">Water when soil is dry</h2>
+            <label class="switch" title="Automatic watering">
+              <input type="checkbox" id="auto_enabled" />
+              <span></span>
+            </label>
+          </div>
+          {% if not has_moisture %}
+          <p class="notice"><i class="fa-solid fa-circle-info"></i> No soil moisture sensor detected. This rule needs a capacitive sensor + ADS1115 (see README). Daily schedules below work without it.</p>
+          {% endif %}
+
+          <div class="field">
+            <div class="field-head">
+              <label for="moisture_threshold">Water when moisture drops below</label>
+              <output id="out-threshold">--</output>
+            </div>
+            <div class="range-wrap">
+              <input type="range" id="moisture_threshold" min="5" max="90" step="1" />
+              <span class="range-now" id="moisture-now" hidden title="Current soil moisture"></span>
+            </div>
+            <div class="range-scale"><span>Dry</span><span id="now-label"></span><span>Wet</span></div>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <div class="field-head">
+                <label for="auto_seconds">Pump runs for</label>
+                <output id="out-seconds">--</output>
+              </div>
+              <input type="range" id="auto_seconds" min="{{ cfg.WATER_MIN_SECONDS }}" max="{{ cfg.WATER_MAX_SECONDS }}" step="1" />
+            </div>
+            <div class="field">
+              <div class="field-head"><label for="auto_min_gap_minutes">Then wait at least</label></div>
+              <select id="auto_min_gap_minutes">
+                <option value="30">30 minutes</option>
+                <option value="60">1 hour</option>
+                <option value="120">2 hours</option>
+                <option value="240">4 hours</option>
+                <option value="360">6 hours</option>
+                <option value="720">12 hours</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <!-- Schedules -->
+        <section class="card anim" style="--d: 0.22s" aria-labelledby="sched-title">
+          <div class="card-head">
+            <h2 id="sched-title">Daily schedule</h2>
+            <button type="button" class="ghost-btn" id="add-schedule"><i class="fa-solid fa-plus"></i> Add time</button>
+          </div>
+          <ul class="schedules" id="schedules"></ul>
+        </section>
+
+        <!-- Ranges -->
+        <section class="card anim" style="--d: 0.28s" aria-labelledby="range-title">
+          <div class="card-head">
+            <h2 id="range-title">Alerts</h2>
+            <span class="pill-note">Shown on the dashboard when outside</span>
+          </div>
+          <div class="field-grid">
+            <label class="num-field">Min temperature<span><input type="number" id="temp_min" min="0" max="50" /> °C</span></label>
+            <label class="num-field">Max temperature<span><input type="number" id="temp_max" min="0" max="50" /> °C</span></label>
+            <label class="num-field">Min humidity<span><input type="number" id="humidity_min" min="0" max="100" /> %</span></label>
+            <label class="num-field">Max humidity<span><input type="number" id="humidity_max" min="0" max="100" /> %</span></label>
+            <label class="num-field">Block pump below tank<span><input type="number" id="low_water_percent" min="0" max="50" /> %</span></label>
+          </div>
+        </section>
+
+        <div class="save-bar" id="save-bar" hidden>
+          <span>Unsaved changes</span>
+          <button type="button" class="ghost-btn" id="discard">Discard</button>
+          <button type="button" class="save-btn" id="save">Save</button>
+        </div>
+      </main>
+    </div>
+
+    <script src="/static/main.js" defer></script>
+    <script src="/static/automation.js" defer></script>
+  </body>
+</html>

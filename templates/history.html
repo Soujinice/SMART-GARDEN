@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>History · Smart Indoor Garden</title>
+    {% include "_head.html" %}
+    <link rel="stylesheet" href="/static/app.css" />
+  </head>
+  <body class="app">
+    {% include "_app_bg.html" %}
+
+    <div class="app-page">
+      {% set active = "history" %}
+      {% include "_header.html" %}
+
+      <main class="app-main">
+        <div class="page-title anim" style="--d: 0.05s">
+          <h1>History</h1>
+          <p>Trends from your sensors and every watering.</p>
+        </div>
+
+        <!-- Trends -->
+        <section class="card anim" style="--d: 0.1s" aria-labelledby="trend-title">
+          <div class="toolbar">
+            <div class="seg" role="tablist" aria-label="Measurement" id="metric-tabs">
+              <button type="button" role="tab" data-metric="moisture" aria-selected="true">Moisture</button>
+              <button type="button" role="tab" data-metric="temperature" aria-selected="false">Temperature</button>
+              <button type="button" role="tab" data-metric="humidity" aria-selected="false">Humidity</button>
+              <button type="button" role="tab" data-metric="water_level" aria-selected="false">Water tank</button>
+            </div>
+            <div class="seg seg-small" role="tablist" aria-label="Time range" id="range-tabs">
+              <button type="button" role="tab" data-range="24h" aria-selected="true">24 h</button>
+              <button type="button" role="tab" data-range="7d" aria-selected="false">7 days</button>
+            </div>
+          </div>
+
+          <h2 class="sr-only" id="trend-title">Trend</h2>
+          <div class="tiles" id="tiles">
+            <div class="tile"><span>Now</span><b id="t-now">--</b></div>
+            <div class="tile"><span>Lowest</span><b id="t-min">--</b></div>
+            <div class="tile"><span>Highest</span><b id="t-max">--</b></div>
+            <div class="tile"><span>Average</span><b id="t-avg">--</b></div>
+          </div>
+
+          <div class="chart" id="chart">
+            <svg id="chart-svg" role="img" aria-labelledby="chart-desc"><desc id="chart-desc">Line chart</desc></svg>
+            <div class="chart-tip" id="chart-tip" hidden></div>
+            <p class="chart-empty" id="chart-empty" hidden>No data yet - readings are saved every minute.</p>
+          </div>
+          <div class="legend" id="legend">
+            <span><i class="lg-line"></i><span id="legend-metric">Soil moisture</span></span>
+            <span id="legend-threshold"><i class="lg-dash"></i>Auto-water threshold</span>
+            <span><i class="lg-dot t-manual"></i>Manual</span>
+            <span><i class="lg-dot t-auto"></i>Auto</span>
+            <span><i class="lg-dot t-schedule"></i>Schedule</span>
+          </div>
+        </section>
+
+        <!-- Waterings per day -->
+        <section class="card anim" style="--d: 0.16s" aria-labelledby="bars-title">
+          <div class="card-head">
+            <h2 id="bars-title">Waterings per day</h2>
+            <span class="pill-note" id="bars-total">--</span>
+          </div>
+          <div class="bars" id="bars"></div>
+        </section>
+
+        <!-- Log -->
+        <section class="card anim" id="log" style="--d: 0.22s" aria-labelledby="log-title">
+          <div class="card-head">
+            <h2 id="log-title">Watering log</h2>
+            <a class="text-link" href="/api/log.csv" download><i class="fa-solid fa-download" aria-hidden="true"></i> Export CSV</a>
+          </div>
+          <div class="toolbar">
+            <div class="seg seg-small" role="tablist" aria-label="Trigger" id="filter-tabs">
+              <button type="button" role="tab" data-filter="all" aria-selected="true">All</button>
+              <button type="button" role="tab" data-filter="manual" aria-selected="false">Manual</button>
+              <button type="button" role="tab" data-filter="auto" aria-selected="false">Auto</button>
+              <button type="button" role="tab" data-filter="schedule" aria-selected="false">Schedule</button>
+            </div>
+            <div class="seg seg-small" role="tablist" aria-label="Log period" id="days-tabs">
+              <button type="button" role="tab" data-days="7" aria-selected="true">7 days</button>
+              <button type="button" role="tab" data-days="30" aria-selected="false">30 days</button>
+            </div>
+          </div>
+          <div id="log-list" class="log"></div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/static/main.js" defer></script>
+    <script src="/static/history.js" defer></script>
+  </body>
+</html>

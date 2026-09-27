@@ -1,12 +1,19 @@
 # Smart Indoor Garden
 
-An automated plant-monitoring system for a **Raspberry Pi 3 B**. It tracks temperature and humidity (DHT11) and the water-tank level (HC-SR04 ultrasonic sensor), and lets you water your plants remotely from a web dashboard (Flask).
+An automated plant-monitoring system for a **Raspberry Pi 3 B**. It tracks temperature and humidity (DHT11), the water-tank level (HC-SR04 ultrasonic sensor) and, optionally, soil moisture. You can water your plants remotely from a web dashboard (Flask), or let the garden water itself.
 
-| Page | What it shows |
+| Page | What it does |
 |---|---|
 | `/` | Landing page with live readings |
-| `/dashboard` | Health status, temperature, humidity, tank level, **Water Now** |
-| `/wiring` | Pin-by-pin wiring and safety checklist |
+| `/dashboard` | Live gauges (moisture, temperature, humidity, tank), **Water Now** + **Stop**, auto-watering on/off, recent waterings |
+| `/history` | 24-hour / 7-day charts with watering markers, waterings per day, full watering log, CSV export |
+| `/automation` | Plant presets, moisture threshold, daily schedules, alert ranges |
+
+**How automatic watering works**
+
+- **Soil moisture rule:** when moisture drops below your threshold, the pump runs for the time you set. It then waits (e.g. 1 hour) so the water can soak in before checking again. This needs the optional moisture sensor.
+- **Daily schedule:** water at fixed times (e.g. 08:00 for 5 s). This works without a moisture sensor.
+- **Safety:** watering is refused when the tank is low (the pump never runs dry), each watering lasts at most 15 s, and there are at least 30 s between waterings. A skipped watering is recorded in the log with the reason.
 
 ## 1. Wiring (power the Pi OFF first)
 
@@ -47,6 +54,24 @@ ECHO ── 1k ──┬── Pin 18 (GPIO24)
 | IN | Pin 11 (GPIO17) |
 | GND | Pin 9 (GND) |
 
+**Soil moisture sensor (optional, for automatic watering by moisture)**
+
+The Pi has no analog inputs, so a capacitive soil moisture sensor v1.2 needs an **ADS1115** ADC board (I2C):
+
+| From | To |
+|---|---|
+| ADS1115 VDD | Pin 17 (3.3V) |
+| ADS1115 GND | Pin 20 (GND) |
+| ADS1115 SCL | Pin 5 (GPIO3 / SCL) |
+| ADS1115 SDA | Pin 3 (GPIO2 / SDA) |
+| ADS1115 ADDR | ADS1115 GND |
+| Sensor VCC | Pin 17 (3.3V) - shared with the ADS1115 |
+| Sensor GND | Pin 25 (GND) |
+| Sensor AOUT | ADS1115 A0 |
+
+Enable I2C once: `sudo raspi-config` → **Interface Options → I2C → Yes**, then reboot. Check it's detected with `i2cdetect -y 1`, which should show `48`.
+Without this sensor, set `MOISTURE_SENSOR = None` in `config.py`. Moisture then shows "No sensor", and daily schedules still work.
+
 The pump gets its **own** 5V supply: supply (+) → relay COM, relay NO → pump (+), pump (−) → supply (−). Never power the pump from the Pi.
 Without a relay, set `PUMP_RELAY_PIN = None` in `config.py`. The dashboard then shows "No pump connected".
 
@@ -77,24 +102,29 @@ Press **Stop** in Thonny to shut it down. The pump relay is always switched off 
 
 ## 4. Configure
 
-Edit `config.py`:
+Plant settings (moisture threshold, schedules, alert ranges, low-tank limit) are set on the website's **Automation** page and saved in `settings.json`.
+
+Hardware settings are in `config.py`:
 
 - `TANK_EMPTY_DISTANCE_CM` / `TANK_FULL_DISTANCE_CM`: measure your tank (sensor → bottom, sensor → full water line).
-- `LOW_WATER_PERCENT`: watering is blocked below this level, so the pump never runs dry.
-- `TEMP_RANGE_C`, `HUMIDITY_RANGE`: the comfort range for your plants.
-- `WATER_MAX_SECONDS`, `WATER_COOLDOWN_SECONDS`: safety limits for remote watering.
+- `MOISTURE_DRY_RAW` / `MOISTURE_WET_RAW`: moisture calibration. Hold the probe in dry air and note the raw value, then put it in a glass of water and note that value. To read the raw value, run this in Thonny's shell with `app.py` stopped: `from sensors import MoistureADS1115; print(MoistureADS1115(0x48, 0).raw())`.
+- `PUMP_ML_PER_SECOND`: run the pump for 10 s into a measuring cup and divide the ml by 10. This is used for the "~ml watered" figures.
+- `WATER_MAX_SECONDS`, `WATER_COOLDOWN_SECONDS`: hard safety limits.
 - `RELAY_ACTIVE_LOW`: set to `False` if your relay clicks ON at start-up.
+
+History is stored in `garden.db` (SQLite, built into Python). Readings are saved once a minute and kept for 30 days. The watering log is kept permanently.
 
 ## Testing without a Pi
 
-`python3 app.py` on any computer runs in **simulation mode** with fake sensor data, so you can work on the website.
+`python3 app.py` on any computer runs in **simulation mode** with fake sensor data and 7 days of demo history, so you can try every page. Delete `garden.db` before moving to the Pi so the demo history doesn't come along.
 
 ## Files
 
 ```
-app.py            Flask server + API (/api/status, /api/water)
-sensors.py        DHT11, HC-SR04 and relay drivers (+ simulator)
-config.py         Pins, tank size, thresholds
-templates/        index.html, dashboard.html, wiring.html
-static/           styles.css, app.css, main.js, dashboard.js, assets/, fonts/
+app.py            Flask server, automation engine, API
+sensors.py        DHT11, HC-SR04, ADS1115 moisture and relay drivers (+ simulator)
+storage.py        SQLite history + settings.json
+config.py         Pins, tank size, calibration, safety limits
+templates/        index, dashboard, history, automation pages
+static/           styles.css, app.css, main.js, dashboard.js, history.js, automation.js
 ```
