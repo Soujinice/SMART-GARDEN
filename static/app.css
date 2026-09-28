@@ -1035,6 +1035,52 @@ input[type="number"] {
 }
 
 select { width: 100%; cursor: pointer; }
+
+/* ---- Dropdown + time picker colours ------------------------------------
+   The open dropdown list and the time picker are drawn by the browser.
+   On the Raspberry Pi browser they can show white text on white, so the
+   colours are set here. Change --picker-bg / --picker-text to restyle them. */
+:root {
+  --picker-bg: #1f1f22;
+  --picker-text: #ffffff;
+  --picker-selected: #8fd9b6;
+}
+
+select option,
+select optgroup {
+  background-color: var(--picker-bg);
+  color: var(--picker-text);
+}
+
+select option:checked {
+  background-color: var(--picker-selected);
+  color: #000000;
+}
+
+/* the little clock icon inside the time box: make it white so it's visible */
+input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.8;
+  cursor: pointer;
+}
+
+/* the hour / minute / AM-PM fields inside the time box */
+input[type="time"]::-webkit-datetime-edit,
+input[type="time"]::-webkit-datetime-edit-fields-wrapper,
+input[type="time"]::-webkit-datetime-edit-hour-field,
+input[type="time"]::-webkit-datetime-edit-minute-field,
+input[type="time"]::-webkit-datetime-edit-ampm-field,
+input[type="time"]::-webkit-datetime-edit-text {
+  color: var(--picker-text);
+}
+
+input[type="time"]::-webkit-datetime-edit-hour-field:focus,
+input[type="time"]::-webkit-datetime-edit-minute-field:focus,
+input[type="time"]::-webkit-datetime-edit-ampm-field:focus {
+  background-color: var(--picker-selected);
+  color: #000000;
+  border-radius: 3px;
+}
 select:disabled { opacity: 0.4; }
 
 select:focus-visible,

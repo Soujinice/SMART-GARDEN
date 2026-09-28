@@ -133,6 +133,20 @@ Then set `MOISTURE_SENSOR = "ads1115"` in `config.py`.
 - Never touch a 5V pin (2 / 4) to any GPIO pin.
 - Keep water away from the Pi and the breadboard.
 
+## Keeping the same address (static IP)
+
+The router gives the Pi its IP address, and it can change after a reboot. The Thonny shell always prints the current one. To keep it fixed, pick one:
+
+- **Use the name instead of the number:** `http://raspberrypi.local:5000` (replace `raspberrypi` with your Pi's hostname). This works on most phones and laptops.
+- **Router "DHCP reservation"** (recommended): in your router's settings, reserve the Pi's current IP for it. Nothing changes on the Pi.
+- **Static IP on the Pi** (Raspberry Pi OS Bookworm or newer). Find the connection name, then set the address:
+  ```bash
+  nmcli con show
+  sudo nmcli con mod "preconfigured" ipv4.method manual ipv4.addresses 192.168.1.50/24 ipv4.gateway 192.168.1.1 ipv4.dns "8.8.8.8"
+  sudo nmcli con up "preconfigured"
+  ```
+  Replace `"preconfigured"` with your connection name. Use an address from your own network (same first three numbers as the current IP) that no other device uses; the gateway is usually your router (`.1`).
+
 ## Troubleshooting
 
 | Message in Thonny | Fix |
@@ -162,8 +176,8 @@ pip3 install adafruit-circuitpython-dht --break-system-packages
 
 1. Copy this folder to the Pi, e.g. `/home/pi/SMART-GARDEN`.
 2. Open `app.py` in Thonny and press **Run** (F5).
-3. Find the Pi's IP address with `hostname -I` in a terminal.
-4. On your phone or laptop (same Wi-Fi), open `http://<pi-ip>:5000`.
+3. The Thonny shell prints the exact address to open, e.g. `http://192.168.1.23:5000`.
+4. Open it on your phone or laptop (same Wi-Fi).
 
 Press **Stop** in Thonny to shut it down. The LED and buzzer are always switched off on exit.
 

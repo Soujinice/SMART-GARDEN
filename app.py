@@ -408,6 +408,29 @@ atexit.register(garden.cleanup)
 signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
 
 
+def local_ip():
+    """The Pi's address on the Wi-Fi/LAN (no internet needed - nothing is sent)."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("10.255.255.255", 1))
+            return s.getsockname()[0]
+    except OSError:
+        return None
+
+
+def print_addresses():
+    ip = local_ip()
+    print("")
+    print("=" * 56)
+    print(" Smart Garden is running. Open one of these:")
+    if ip and not ip.startswith("127."):
+        print("   http://%s:%d      (any device on this Wi-Fi)" % (ip, config.PORT))
+    print("   http://%s.local:%d" % (socket.gethostname(), config.PORT))
+    print("   http://localhost:%d          (on the Pi itself)" % config.PORT)
+    print("=" * 56)
+    print("")
+
+
 def port_is_free(port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
@@ -430,7 +453,7 @@ if __name__ == "__main__":
         last_watered = last["ts"] if last else None
     threading.Thread(target=climate_loop, daemon=True).start()
     threading.Thread(target=sensor_loop, daemon=True).start()
-    print("Smart Garden running - open http://<your-pi-ip>:%d" % config.PORT)
+    print_addresses()
     if garden.simulated:
         print("(No Raspberry Pi GPIO found - using simulated sensor data)")
     # use_reloader=False: the reloader would start the GPIO code twice (breaks in Thonny)
