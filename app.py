@@ -10,6 +10,9 @@ import csv
 import io
 import math
 import random
+import signal
+import socket
+import sys
 import threading
 import time
 from datetime import datetime, timedelta
@@ -384,8 +387,26 @@ def api_settings():
 
 
 atexit.register(garden.cleanup)
+# "Stop" in Thonny / kill: exit normally so cleanup runs and the LED + buzzer switch off
+signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+
+
+def port_is_free(port):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind(("0.0.0.0", port))
+            return True
+        except OSError:
+            return False
+
 
 if __name__ == "__main__":
+    if not port_is_free(config.PORT):
+        print("\n*** Smart Garden is ALREADY RUNNING (port %d is in use). ***" % config.PORT)
+        print("Another copy of app.py is still running (maybe from a terminal or an earlier run).")
+        print("Fix: open a Terminal and run:   pkill -f app.py")
+        print("     (or simply reboot the Pi), then press Run again.\n")
+        sys.exit(1)
     if garden.simulated:
         seed_demo_history()
         last = storage.last_watering()

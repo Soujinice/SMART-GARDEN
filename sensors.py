@@ -89,7 +89,9 @@ class DHT11:
         self._dev = None
         if adafruit_dht is not None:
             try:
-                self._dev = adafruit_dht.DHT11(getattr(board, "D%d" % pin))
+                # use_pulseio=False: no background helper process, so the pin is
+                # always released when the app stops (avoids "Unable to set line 4 to input")
+                self._dev = adafruit_dht.DHT11(getattr(board, "D%d" % pin), use_pulseio=False)
             except Exception:
                 self._dev = None
 
@@ -261,7 +263,10 @@ class Garden:
                                                            config.ADS1115_CHANNEL)
                     self.moisture_sensor.raw()   # probe once: fails fast if not wired
                 except Exception as exc:
-                    print("Moisture sensor not available (%s) - continuing without it" % exc)
+                    hint = ("I2C is off - enable it in raspi-config" if "No such file" in str(exc)
+                            else "check the ADS1115 wiring")
+                    print("Moisture sensor not found (%s). Continuing without it." % hint)
+                    print("  No moisture sensor? Set MOISTURE_SENSOR = None in config.py to hide this.")
                     self.moisture_sensor = None
         self._stop = threading.Event()
         self._sim = {"t": 24.0, "h": 55.0, "d": 8.0, "m": 48.0}

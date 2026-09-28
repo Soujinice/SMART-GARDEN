@@ -24,7 +24,7 @@ BUZZER_TONE_HZ = 2000   # only used for a passive buzzer
 # The Pi has no analog inputs, so a capacitive soil sensor needs an ADS1115 ADC (I2C).
 # Set to None if you don't have one: moisture then shows "No sensor" and
 # automatic watering uses the schedules only.
-MOISTURE_SENSOR = "ads1115"    # "ads1115" or None
+MOISTURE_SENSOR = None         # set to "ads1115" once the ADS1115 + soil sensor are wired
 ADS1115_ADDRESS = 0x48         # ADDR pin to GND
 ADS1115_CHANNEL = 0            # sensor AOUT -> A0
 # Calibration: raw ADC value with the probe in dry air and in a glass of water.

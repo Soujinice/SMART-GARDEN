@@ -120,7 +120,7 @@ The Pi has no analog inputs, so a capacitive soil moisture sensor v1.2 needs an 
 | Sensor AOUT | ADS1115 A0 |
 
 Enable I2C once: `sudo raspi-config` → **Interface Options → I2C → Yes**, then reboot. Check it's detected with `i2cdetect -y 1`, which should show `48`.
-Without this sensor, set `MOISTURE_SENSOR = None` in `config.py`. Moisture then shows "No sensor", and daily schedules still work.
+Then set `MOISTURE_SENSOR = "ads1115"` in `config.py`. The default is `None` (no moisture sensor): moisture then shows "No sensor", and daily schedules still work.
 
 ### Safety checklist
 
@@ -130,6 +130,15 @@ Without this sensor, set `MOISTURE_SENSOR = None` in `config.py`. Moisture then 
 - Always use the LED resistor.
 - Never touch a 5V pin (2 / 4) to any GPIO pin.
 - Keep water away from the Pi and the breadboard.
+
+## Troubleshooting
+
+| Message in Thonny | Fix |
+|---|---|
+| `Smart Garden is ALREADY RUNNING (port 5000 is in use)` or `Address already in use` | An old copy is still running. In a Terminal run `pkill -f app.py` (or reboot), then press Run again. |
+| `Unable to set line 4 to input` | Same cause: the old copy still holds the DHT11 pin. Run `pkill -f app.py` and `pkill -f libgpiod_pulsein`, then Run again. |
+| `Moisture sensor not found (I2C is off …)` | Only matters if you have the ADS1115: enable I2C in `raspi-config`. Otherwise keep `MOISTURE_SENSOR = None`. |
+| Temperature shows `--` | Check the DHT11 wires (Pins 1, 7, 6). The first reading can take up to 10 s. |
 
 ## 2. Install (on the Pi)
 
