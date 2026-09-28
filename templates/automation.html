@@ -42,6 +42,9 @@
               <span></span>
             </label>
           </div>
+          {% if moisture_simulated %}
+          <p class="notice"><i class="fa-solid fa-circle-info"></i> No soil sensor connected - moisture is simulated for the demo. The soil slowly dries and each watering raises it, so this rule still turns on the LED and buzzer.</p>
+          {% endif %}
           {% if not has_moisture %}
           <p class="notice"><i class="fa-solid fa-circle-info"></i> No soil moisture sensor detected. This rule needs a capacitive sensor + ADS1115 (see README). Daily schedules below work without it.</p>
           {% endif %}

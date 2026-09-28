@@ -151,6 +151,10 @@
   }
 
   function applyFallback(data) {
+    if (data.moisture_simulated) {
+      var lbl = document.querySelector('.stat-value[data-key="moisture"] ~ .stat-label');
+      if (lbl) lbl.textContent = "Soil Moisture (sim)";
+    }
     if (data.has_moisture) return;
     document.querySelectorAll(".stat[data-fallback]").forEach(function (stat) {
       var v = stat.querySelector(".stat-value");

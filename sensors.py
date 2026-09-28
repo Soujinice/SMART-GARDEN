@@ -254,7 +254,9 @@ class Garden:
             if config.BUZZER_PIN is not None:
                 self.buzzer = Buzzer(config.BUZZER_PIN, config.BUZZER_TYPE == "passive")
         self.moisture_sensor = None
-        if config.MOISTURE_SENSOR == "ads1115":
+        if config.MOISTURE_SENSOR == "simulated":
+            self.moisture_sensor = "sim"          # no sensor: realistic demo values
+        elif config.MOISTURE_SENSOR == "ads1115":
             if self.simulated:
                 self.moisture_sensor = "sim"
             else:
@@ -269,7 +271,8 @@ class Garden:
                     print("  No moisture sensor? Set MOISTURE_SENSOR = None in config.py to hide this.")
                     self.moisture_sensor = None
         self._stop = threading.Event()
-        self._sim = {"t": 24.0, "h": 55.0, "d": 8.0, "m": 48.0}
+        self._sim = {"t": 24.0, "h": 55.0, "d": 8.0, "m": random.uniform(45, 60)}
+        self._sim_last = time.monotonic()
 
     # -- readings -----------------------------------------------------------
     def read_climate(self):
@@ -289,12 +292,21 @@ class Garden:
     def has_moisture(self):
         return self.moisture_sensor is not None
 
+    @property
+    def moisture_simulated(self):
+        return self.moisture_sensor == "sim"
+
     def read_moisture(self):
         if self.moisture_sensor is None:
             return None
-        if self.simulated:
-            self._sim["m"] = max(5.0, self._sim["m"] - random.uniform(0, 0.05))
-            return round(self._sim["m"])
+        if self.moisture_sensor == "sim":
+            # Soil slowly dries out (with a little noise); watering pushes it back up.
+            now = time.monotonic()
+            minutes = (now - self._sim_last) / 60
+            self._sim_last = now
+            dry = config.MOISTURE_SIM_DRY_PER_MINUTE * minutes * random.uniform(0.6, 1.4)
+            self._sim["m"] = max(5.0, self._sim["m"] - dry)
+            return round(self._sim["m"] + random.uniform(-0.4, 0.4))
         try:
             return raw_to_moisture_percent(self.moisture_sensor.raw())
         except OSError:
@@ -347,7 +359,8 @@ class Garden:
                 self.beep(BEEP_END)
             if self.simulated:
                 self._sim["d"] = min(config.TANK_EMPTY_DISTANCE_CM, self._sim["d"] + 0.15 * ran)
-                self._sim["m"] = min(90.0, self._sim["m"] + 4 * ran)
+            if self.moisture_sensor == "sim":
+                self._sim["m"] = min(85.0, self._sim["m"] + 4 * ran)   # 5 s of water = about +20 %
             return ran
 
     def test_outputs(self, sound=True):

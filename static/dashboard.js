@@ -80,7 +80,8 @@
       var m = d.moisture;
       var dry = m !== null && m < s.moisture_threshold;
       setGauge("moisture", m, dry ? "warn" : "ok",
-        m === null ? "No reading yet" : dry ? "Dry · waters below " + s.moisture_threshold + "%" : "Waters below " + s.moisture_threshold + "%");
+        (d.moisture_simulated ? "Simulated · " : "") +
+        (m === null ? "No reading yet" : dry ? "Dry · waters below " + s.moisture_threshold + "%" : "Waters below " + s.moisture_threshold + "%"));
       setMark("moisture", s.moisture_threshold);
     }
 

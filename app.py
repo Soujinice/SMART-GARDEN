@@ -243,7 +243,8 @@ def history():
 
 @app.route("/automation")
 def automation():
-    return render_template("automation.html", cfg=config, has_moisture=garden.has_moisture)
+    return render_template("automation.html", cfg=config, has_moisture=garden.has_moisture,
+                           moisture_simulated=garden.moisture_simulated)
 
 
 # ---------------------------------------------------------------------------
@@ -298,6 +299,7 @@ def api_status():
         next_schedule=next_schedule(settings),
         settings=settings,
         has_moisture=garden.has_moisture,
+        moisture_simulated=garden.moisture_simulated,
         output_connected=garden.has_output,
         simulated=garden.simulated,
         updated=s["updated"],

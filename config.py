@@ -20,11 +20,13 @@ BUZZER_PIN = 27        # GPIO27 = physical pin 13
 BUZZER_TYPE = "active"  # "active" (beeps on its own) or "passive" (needs a tone)
 BUZZER_TONE_HZ = 2000   # only used for a passive buzzer
 
-# --- Soil moisture (optional) ----------------------------------------------
-# The Pi has no analog inputs, so a capacitive soil sensor needs an ADS1115 ADC (I2C).
-# Set to None if you don't have one: moisture then shows "No sensor" and
-# automatic watering uses the schedules only.
-MOISTURE_SENSOR = None         # set to "ads1115" once the ADS1115 + soil sensor are wired
+# --- Soil moisture -----------------------------------------------------------
+# "simulated": no sensor - realistic demo values (soil dries slowly, watering raises it).
+#              The website marks these values as "Simulated".
+# "ads1115":   a real capacitive soil sensor through an ADS1115 ADC (I2C).
+# None:        hide moisture completely.
+MOISTURE_SENSOR = "simulated"
+MOISTURE_SIM_DRY_PER_MINUTE = 0.6   # simulated drying speed (% per minute)
 ADS1115_ADDRESS = 0x48         # ADDR pin to GND
 ADS1115_CHANNEL = 0            # sensor AOUT -> A0
 # Calibration: raw ADC value with the probe in dry air and in a glass of water.
