@@ -61,7 +61,7 @@
           <div class="field-row">
             <div class="field">
               <div class="field-head">
-                <label for="auto_seconds">Pump runs for</label>
+                <label for="auto_seconds">Water for</label>
                 <output id="out-seconds">--</output>
               </div>
               <input type="range" id="auto_seconds" min="{{ cfg.WATER_MIN_SECONDS }}" max="{{ cfg.WATER_MAX_SECONDS }}" step="1" />
@@ -100,8 +100,25 @@
             <label class="num-field">Max temperature<span><input type="number" id="temp_max" min="0" max="50" /> °C</span></label>
             <label class="num-field">Min humidity<span><input type="number" id="humidity_min" min="0" max="100" /> %</span></label>
             <label class="num-field">Max humidity<span><input type="number" id="humidity_max" min="0" max="100" /> %</span></label>
-            <label class="num-field">Block pump below tank<span><input type="number" id="low_water_percent" min="0" max="50" /> %</span></label>
+            <label class="num-field">Block watering below tank<span><input type="number" id="low_water_percent" min="0" max="50" /> %</span></label>
           </div>
+        </section>
+
+        <!-- LED & buzzer -->
+        <section class="card anim" style="--d: 0.34s" aria-labelledby="buzzer-title">
+          <div class="card-head">
+            <h2 id="buzzer-title">LED &amp; buzzer</h2>
+            <label class="switch" title="Buzzer sound">
+              <input type="checkbox" id="buzzer_enabled" />
+              <span></span>
+            </label>
+          </div>
+          <ul class="beep-list">
+            <li><i class="fa-solid fa-lightbulb"></i> LED stays on for the whole watering</li>
+            <li><i class="fa-solid fa-volume-high"></i> 2 short beeps = watering starts · 1 long beep = done</li>
+            <li><i class="fa-solid fa-triangle-exclamation"></i> 3 beeps = problem (tank low), repeated every 30 min</li>
+          </ul>
+          <button type="button" class="ghost-btn" id="test-outputs"><i class="fa-solid fa-bell"></i> Test LED &amp; buzzer</button>
         </section>
 
         <div class="save-bar" id="save-bar" hidden>

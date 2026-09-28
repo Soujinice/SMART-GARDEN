@@ -13,9 +13,12 @@ DHT11_PIN = 4          # GPIO4  = physical pin 7
 ULTRASONIC_TRIG = 23   # GPIO23 = physical pin 16
 ULTRASONIC_ECHO = 24   # GPIO24 = physical pin 18 (through the 1k/2k voltage divider!)
 
-# Water pump relay. Set to None if no pump/relay is connected.
-PUMP_RELAY_PIN = 17    # GPIO17 = physical pin 11
-RELAY_ACTIVE_LOW = True  # most blue 1-channel relay modules switch ON when IN is LOW
+# Watering indicator (stands in for a pump):
+# the LED is ON for the whole watering, the buzzer beeps at start/end and on alerts.
+LED_PIN = 17           # GPIO17 = physical pin 11 (through a 330 ohm resistor)
+BUZZER_PIN = 27        # GPIO27 = physical pin 13
+BUZZER_TYPE = "active"  # "active" (beeps on its own) or "passive" (needs a tone)
+BUZZER_TONE_HZ = 2000   # only used for a passive buzzer
 
 # --- Soil moisture (optional) ----------------------------------------------
 # The Pi has no analog inputs, so a capacitive soil sensor needs an ADS1115 ADC (I2C).
@@ -36,7 +39,7 @@ TANK_FULL_DISTANCE_CM = 4.0    # sensor -> water surface when full (keep >= 3 cm
 WATER_MIN_SECONDS = 1
 WATER_MAX_SECONDS = 15
 WATER_COOLDOWN_SECONDS = 30    # minimum pause between two waterings
-PUMP_ML_PER_SECOND = 25        # measure yours: run 10 s into a cup, divide ml by 10
+PUMP_ML_PER_SECOND = 25        # estimate used for the "~ml" figures (for a future real pump)
 
 # --- Timing / storage --------------------------------------------------------
 SENSOR_INTERVAL_SECONDS = 3    # DHT11 needs >= 2 s between reads

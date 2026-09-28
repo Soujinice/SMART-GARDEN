@@ -1259,3 +1259,22 @@ input:focus-visible {
 .toolbar .seg::-webkit-scrollbar {
   display: none;
 }
+
+/* LED & buzzer card */
+.beep-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+  font-size: 13.5px;
+  color: var(--soft);
+}
+
+.beep-list i {
+  width: 18px;
+  margin-right: 8px;
+  color: var(--accent);
+  text-align: center;
+}

@@ -18,7 +18,7 @@ from flask import Flask, Response, jsonify, render_template, request
 
 import config
 import storage
-from sensors import Garden, distance_to_percent
+from sensors import BEEP_ALERT, Garden, distance_to_percent
 
 app = Flask(__name__)
 storage.init_db()
@@ -33,7 +33,7 @@ state = {
     "tank_distance": None,
     "water_level": None,
     "updated": None,
-    "watering": None,        # {"trigger", "seconds", "started"} while the pump runs
+    "watering": None,        # {"trigger", "seconds", "started"} while watering
 }
 last = storage.last_watering()
 last_watered = last["ts"] if last and last["completed"] else None
@@ -43,7 +43,7 @@ last_watered = last["ts"] if last and last["completed"] else None
 # Watering (shared by the button, the moisture rule and the schedules)
 # ---------------------------------------------------------------------------
 def start_watering(seconds, trigger):
-    """Starts the pump in the background. Returns None, or an error message."""
+    """Starts watering (LED + buzzer) in the background. Returns None, or an error message."""
     global last_watered
     settings = storage.get_settings()
     seconds = max(config.WATER_MIN_SECONDS, min(config.WATER_MAX_SECONDS, int(seconds)))
@@ -56,8 +56,8 @@ def start_watering(seconds, trigger):
         level = state["water_level"]
         if level is not None and level < settings["low_water_percent"]:
             return "Tank too low - refill before watering"
-        if not garden.has_pump:
-            return "No pump connected (see config.py)"
+        if not garden.has_output:
+            return "No LED/buzzer connected (see config.py)"
         moisture_before = state["moisture"]
         state["watering"] = {"trigger": trigger, "seconds": seconds, "started": time.time()}
 
@@ -66,7 +66,7 @@ def start_watering(seconds, trigger):
         started = time.time()
         ran = seconds
         try:
-            ran = garden.run_pump(seconds)
+            ran = garden.run_watering(seconds, sound=settings["buzzer_enabled"])
         finally:
             stopped = ran < seconds - 0.5
             with state_lock:
@@ -83,6 +83,27 @@ def log_skipped(trigger, reason):
     with state_lock:
         m, w = state["moisture"], state["water_level"]
     storage.add_watering(time.time(), 0, trigger, m, w, completed=False, note=reason)
+    if storage.get_settings()["buzzer_enabled"]:
+        garden.beep(BEEP_ALERT)
+
+
+# ---------------------------------------------------------------------------
+# Buzzer alerts: beep when a problem starts, and remind every 30 min while it lasts
+# ---------------------------------------------------------------------------
+ALERT_REMIND_SECONDS = 30 * 60
+alert_state = {"level": "ok", "last_beep": 0}
+
+
+def check_alert_beep(snap):
+    settings = storage.get_settings()
+    level, _ = health(snap, settings)
+    now = time.time()
+    became_alert = level == "alert" and alert_state["level"] != "alert"
+    remind = level == "alert" and now - alert_state["last_beep"] > ALERT_REMIND_SECONDS
+    alert_state["level"] = level
+    if (became_alert or remind) and settings["buzzer_enabled"]:
+        alert_state["last_beep"] = now
+        garden.beep(BEEP_ALERT)
 
 
 # ---------------------------------------------------------------------------
@@ -166,6 +187,7 @@ def sensor_loop():
             last_prune = now
             storage.prune(config.KEEP_DAYS)
         try:
+            check_alert_beep(snap)
             run_automation()
         except Exception as exc:   # never let automation kill the sensor loop
             print("Automation error:", exc)
@@ -273,7 +295,7 @@ def api_status():
         next_schedule=next_schedule(settings),
         settings=settings,
         has_moisture=garden.has_moisture,
-        pump_connected=garden.has_pump,
+        output_connected=garden.has_output,
         simulated=garden.simulated,
         updated=s["updated"],
     )
@@ -294,8 +316,19 @@ def api_water():
 
 @app.route("/api/stop", methods=["POST"])
 def api_stop():
-    garden.stop_pump()
+    garden.stop_watering()
     return jsonify(ok=True)
+
+
+@app.route("/api/test-outputs", methods=["POST"])
+def api_test_outputs():
+    """Blinks the LED and beeps once, to check the wiring."""
+    with state_lock:
+        if state["watering"]:
+            return jsonify(ok=False, error="Wait until watering has finished"), 409
+    sound = storage.get_settings()["buzzer_enabled"]
+    threading.Thread(target=garden.test_outputs, args=(sound,), daemon=True).start()
+    return jsonify(ok=True, sound=sound)
 
 
 @app.route("/api/history")

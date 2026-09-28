@@ -28,7 +28,8 @@ DEFAULT_SETTINGS = {
     ],
     "temp_min": 18, "temp_max": 30,
     "humidity_min": 40, "humidity_max": 70,
-    "low_water_percent": 15,       # pump is blocked below this tank level
+    "low_water_percent": 15,       # watering is blocked below this tank level
+    "buzzer_enabled": True,        # beeps for watering start/end and alerts
 }
 
 
@@ -143,6 +144,8 @@ def save_settings(new):
     s = get_settings()
     if "auto_enabled" in new:
         s["auto_enabled"] = bool(new["auto_enabled"])
+    if "buzzer_enabled" in new:
+        s["buzzer_enabled"] = bool(new["buzzer_enabled"])
     if "moisture_threshold" in new:
         s["moisture_threshold"] = _num(new["moisture_threshold"], 5, 90)
     if "auto_seconds" in new:

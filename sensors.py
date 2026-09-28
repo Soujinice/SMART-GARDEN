@@ -1,4 +1,4 @@
-"""Hardware layer: DHT11, HC-SR04 ultrasonic sensor and the (optional) pump relay.
+"""Hardware layer: DHT11, HC-SR04, optional soil moisture sensor, LED and buzzer.
 
 Runs on a Raspberry Pi 3 B with RPi.GPIO (pre-installed on Raspberry Pi OS).
 On a computer without GPIO it switches to a simulator so the website can
@@ -190,21 +190,45 @@ def raw_to_moisture_percent(raw):
 
 
 # ---------------------------------------------------------------------------
-# Pump relay (optional)
+# Watering indicator: LED (on while "watering") + buzzer (beeps)
 # ---------------------------------------------------------------------------
-class PumpRelay:
-    def __init__(self, pin, active_low):
+class Led:
+    def __init__(self, pin):
         self.pin = pin
-        self.on_level = GPIO.LOW if active_low else GPIO.HIGH
-        self.off_level = GPIO.HIGH if active_low else GPIO.LOW
-        # initial=OFF so the pump never twitches on at start-up
-        GPIO.setup(pin, GPIO.OUT, initial=self.off_level)
+        GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW)   # starts OFF
 
     def on(self):
-        GPIO.output(self.pin, self.on_level)
+        GPIO.output(self.pin, GPIO.HIGH)
 
     def off(self):
-        GPIO.output(self.pin, self.off_level)
+        GPIO.output(self.pin, GPIO.LOW)
+
+
+class Buzzer:
+    """Active buzzer: just switched on/off. Passive buzzer: needs a tone (PWM)."""
+
+    def __init__(self, pin, passive):
+        self.pin = pin
+        GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW)   # silent at start-up
+        self.pwm = GPIO.PWM(pin, config.BUZZER_TONE_HZ) if passive else None
+
+    def on(self):
+        if self.pwm:
+            self.pwm.start(50)
+        else:
+            GPIO.output(self.pin, GPIO.HIGH)
+
+    def off(self):
+        if self.pwm:
+            self.pwm.stop()
+        GPIO.output(self.pin, GPIO.LOW)
+
+
+# Beep patterns: list of (on_seconds, off_seconds)
+BEEP_START = [(0.08, 0.08), (0.08, 0)]           # two short beeps: watering starts
+BEEP_END = [(0.35, 0)]                            # one long beep: watering done
+BEEP_ALERT = [(0.15, 0.12)] * 3                   # three beeps: problem (e.g. tank low)
+BEEP_TEST = [(0.1, 0.1), (0.1, 0.1), (0.4, 0)]
 
 
 # ---------------------------------------------------------------------------
@@ -214,14 +238,19 @@ class Garden:
     def __init__(self):
         self.simulated = not ON_PI
         self._lock = threading.Lock()
-        self.pump = None
+        self._beep_lock = threading.Lock()
+        self.led = None
+        self.buzzer = None
+        self.beep_log = []   # simulation only: what the buzzer would have played
         if ON_PI:
             GPIO.setwarnings(False)
             GPIO.setmode(GPIO.BCM)
             self.dht = DHT11(config.DHT11_PIN)
             self.sonar = Ultrasonic(config.ULTRASONIC_TRIG, config.ULTRASONIC_ECHO)
-            if config.PUMP_RELAY_PIN is not None:
-                self.pump = PumpRelay(config.PUMP_RELAY_PIN, config.RELAY_ACTIVE_LOW)
+            if config.LED_PIN is not None:
+                self.led = Led(config.LED_PIN)
+            if config.BUZZER_PIN is not None:
+                self.buzzer = Buzzer(config.BUZZER_PIN, config.BUZZER_TYPE == "passive")
         self.moisture_sensor = None
         if config.MOISTURE_SENSOR == "ads1115":
             if self.simulated:
@@ -266,42 +295,76 @@ class Garden:
         except OSError:
             return None   # loose I2C wire - try again next cycle
 
-    # -- pump -----------------------------------------------------------------
-    @property
-    def has_pump(self):
-        return self.pump is not None or self.simulated
+    # -- buzzer -------------------------------------------------------------------
+    def beep(self, pattern, wait=False):
+        """Plays a beep pattern in the background (never blocks the web server)."""
+        def play():
+            with self._beep_lock:          # one pattern at a time, never overlapping
+                if self.simulated:
+                    self.beep_log.append(len(pattern))
+                for on, off in pattern:
+                    if self.buzzer:
+                        self.buzzer.on()
+                    time.sleep(on)
+                    if self.buzzer:
+                        self.buzzer.off()
+                    time.sleep(off)
+        if wait:
+            play()
+        else:
+            threading.Thread(target=play, daemon=True).start()
 
-    def stop_pump(self):
+    # -- watering output (LED + buzzer) --------------------------------------------
+    @property
+    def has_output(self):
+        return self.led is not None or self.buzzer is not None or self.simulated
+
+    def stop_watering(self):
         self._stop.set()
 
-    def run_pump(self, seconds):
-        """Blocking: pump on for `seconds` (or until stop_pump()), always off after.
+    def run_watering(self, seconds, sound=True):
+        """Blocking: LED on for `seconds` (or until stop_watering()), always off after.
         Returns the number of seconds it actually ran."""
         with self._lock:
             self._stop.clear()
+            if sound:
+                self.beep(BEEP_START, wait=True)
             start = time.monotonic()
-            if self.pump is None:
-                if self.simulated:
-                    self._stop.wait(seconds)
-                    ran = time.monotonic() - start
-                    self._sim["d"] = min(config.TANK_EMPTY_DISTANCE_CM,
-                                         self._sim["d"] + 0.15 * ran)
-                    self._sim["m"] = min(90.0, self._sim["m"] + 4 * ran)
-                    return ran
-                return 0
             try:
-                self.pump.on()
+                if self.led:
+                    self.led.on()
                 self._stop.wait(seconds)
             finally:
-                self.pump.off()
-            return time.monotonic() - start
+                if self.led:
+                    self.led.off()
+            ran = time.monotonic() - start
+            if sound:
+                self.beep(BEEP_END)
+            if self.simulated:
+                self._sim["d"] = min(config.TANK_EMPTY_DISTANCE_CM, self._sim["d"] + 0.15 * ran)
+                self._sim["m"] = min(90.0, self._sim["m"] + 4 * ran)
+            return ran
+
+    def test_outputs(self, sound=True):
+        """LED blinks 3 times while the buzzer plays a test pattern."""
+        if sound:
+            self.beep(BEEP_TEST)
+        for _ in range(3):
+            if self.led:
+                self.led.on()
+            time.sleep(0.25)
+            if self.led:
+                self.led.off()
+            time.sleep(0.2)
 
     def cleanup(self):
         if not ON_PI:
             return
         try:
-            if self.pump:
-                self.pump.off()
+            if self.led:
+                self.led.off()
+            if self.buzzer:
+                self.buzzer.off()
             self.dht.close()
         finally:
             GPIO.cleanup()

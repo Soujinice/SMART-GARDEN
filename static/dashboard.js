@@ -158,7 +158,7 @@
 
     var reason = "";
     if (running) reason = "";
-    else if (!d.pump_connected) reason = "No pump connected";
+    else if (!d.output_connected) reason = "No LED/buzzer connected";
     else if (d.water_level !== null && d.water_level < d.settings.low_water_percent) reason = "Refill the tank first";
     btn.disabled = running || !!reason;
     $("water-msg").textContent = reason;
@@ -211,7 +211,7 @@
   });
 
   $("stop-btn").addEventListener("click", function () {
-    SG.post("/api/stop").then(function () { SG.toast("Pump stopped", "info"); poll(); });
+    SG.post("/api/stop").then(function () { SG.toast("Watering stopped", "info"); poll(); });
   });
 
   $("auto-toggle").addEventListener("change", function () {

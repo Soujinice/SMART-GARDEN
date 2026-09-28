@@ -26,6 +26,7 @@
   // -- form <-> draft -------------------------------------------------------
   function fill() {
     $("auto_enabled").checked = draft.auto_enabled && hasMoisture;
+    $("buzzer_enabled").checked = draft.buzzer_enabled;
     $("auto_enabled").disabled = !hasMoisture;
     NUMS.forEach(function (k) { $(k).value = draft[k]; });
     ["moisture_threshold", "auto_seconds"].forEach(function (k) { $(k).disabled = !hasMoisture; });
@@ -50,6 +51,7 @@
 
   function readForm() {
     draft.auto_enabled = $("auto_enabled").checked;
+    draft.buzzer_enabled = $("buzzer_enabled").checked;
     NUMS.forEach(function (k) { var v = parseInt($(k).value, 10); if (!isNaN(v)) draft[k] = v; });
   }
 
@@ -157,6 +159,16 @@
 
   window.addEventListener("beforeunload", function (e) {
     if (saved && dirty()) { e.preventDefault(); e.returnValue = ""; }
+  });
+
+  // -- LED & buzzer test ------------------------------------------------------
+  $("test-outputs").addEventListener("click", function () {
+    var btn = this;
+    btn.disabled = true;
+    SG.post("/api/test-outputs")
+      .then(function (r) { SG.toast(r.sound ? "LED blinking + buzzer beeping" : "LED blinking (buzzer is muted)", "ok"); })
+      .catch(function (e) { SG.toast(e.message, "error"); })
+      .finally(function () { setTimeout(function () { btn.disabled = false; }, 1500); });
   });
 
   // -- live moisture marker on the threshold slider ----------------------------
