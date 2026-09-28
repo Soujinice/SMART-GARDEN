@@ -190,6 +190,6 @@
     draft = clone(s);
     fill();
     showMoisture();
-    setInterval(function () { if (!document.hidden) showMoisture(); }, 10000);
+    setInterval(function () { if (!document.hidden) showMoisture(); }, Math.max(SG.refreshMs, 2000));
   }).catch(function (e) { SG.toast(e.message, "error"); });
 })();

@@ -173,6 +173,11 @@ Plant settings (moisture threshold, schedules, alert ranges, low-tank limit) are
 
 Hardware settings are in `config.py`:
 
+- **Update speed** (lower = faster website updates):
+  - `SENSOR_INTERVAL_SECONDS = 1`: water tank + moisture
+  - `DHT_INTERVAL_SECONDS = 2`: temperature/humidity (the DHT11 can't go below 2 s)
+  - `WEB_REFRESH_SECONDS = 1`: how often the web pages fetch new values
+
 - `TANK_EMPTY_DISTANCE_CM` / `TANK_FULL_DISTANCE_CM`: measure your tank (sensor → bottom, sensor → full water line).
 - `MOISTURE_DRY_RAW` / `MOISTURE_WET_RAW`: moisture calibration. Hold the probe in dry air and note the raw value, then put it in a glass of water and note that value. To read the raw value, run this in Thonny's shell with `app.py` stopped: `from sensors import MoistureADS1115; print(MoistureADS1115(0x48, 0).raw())`.
 - `PUMP_ML_PER_SECOND`: the estimate behind the "~ml watered" figures. It's only meaningful if you add a real pump later.

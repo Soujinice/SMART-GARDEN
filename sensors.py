@@ -96,21 +96,17 @@ class DHT11:
                 self._dev = None
 
     def read(self):
-        """Try a few times (the DHT11 often misses a read). Returns (t, h) or None."""
-        for _ in range(4):
-            try:
-                if self._dev is not None:
-                    t, h = self._dev.temperature, self._dev.humidity
-                    if t is not None and h is not None:
-                        return float(t), float(h)
-                else:
-                    result = _read_dht11_gpio(self.pin)
-                    if result:
-                        return result
-            except RuntimeError:
-                pass  # normal for DHT sensors - just retry
-            time.sleep(2.1)
-        return None
+        """One quick attempt. Returns (t, h), or None when the DHT11 misses a read
+        (that is normal - the climate loop in app.py simply tries again)."""
+        try:
+            if self._dev is not None:
+                t, h = self._dev.temperature, self._dev.humidity
+                if t is not None and h is not None:
+                    return float(t), float(h)
+                return None
+            return _read_dht11_gpio(self.pin)
+        except RuntimeError:
+            return None
 
     def close(self):
         if self._dev is not None:

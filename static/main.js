@@ -9,6 +9,10 @@
 
   SG.reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+  // Refresh speed comes from WEB_REFRESH_SECONDS in config.py
+  var refreshMeta = document.querySelector('meta[name="refresh-ms"]');
+  SG.refreshMs = (refreshMeta && +refreshMeta.content) || 2000;
+
   SG.ago = function (ts) {
     if (!ts) return "never";
     var s = Math.max(0, Math.round(Date.now() / 1000 - ts));
@@ -208,5 +212,5 @@
 
   load();
   // Refresh every 5 s, but only while the tab is visible (no wasted work).
-  setInterval(function () { if (!document.hidden) load(); }, 5000);
+  setInterval(function () { if (!document.hidden) load(); }, SG.refreshMs);
 })();

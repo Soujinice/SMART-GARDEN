@@ -43,8 +43,13 @@ WATER_MAX_SECONDS = 15
 WATER_COOLDOWN_SECONDS = 30    # minimum pause between two waterings
 PUMP_ML_PER_SECOND = 25        # estimate used for the "~ml" figures (for a future real pump)
 
-# --- Timing / storage --------------------------------------------------------
-SENSOR_INTERVAL_SECONDS = 3    # DHT11 needs >= 2 s between reads
+# --- Update speed ------------------------------------------------------------
+# Lower = faster updates on the website. These are the values to change if it feels slow.
+SENSOR_INTERVAL_SECONDS = 1    # water tank + moisture are read this often
+DHT_INTERVAL_SECONDS = 2       # temperature/humidity (the DHT11 can't go below 2 s)
+WEB_REFRESH_SECONDS = 1        # how often the website asks the Pi for new values
+
+# --- Storage -------------------------------------------------------------------
 LOG_INTERVAL_SECONDS = 60      # how often a reading is saved for the charts
 KEEP_DAYS = 30                 # history older than this is deleted
 DATABASE_FILE = "garden.db"    # created next to app.py

@@ -236,6 +236,6 @@
   }
 
   poll();
-  setInterval(function () { if (!document.hidden) poll(); }, 2500);
+  setInterval(function () { if (!document.hidden) poll(); }, SG.refreshMs);
   document.addEventListener("visibilitychange", function () { if (!document.hidden) poll(); });
 })();

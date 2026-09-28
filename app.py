@@ -24,6 +24,12 @@ import storage
 from sensors import BEEP_ALERT, Garden, distance_to_percent
 
 app = Flask(__name__)
+
+
+@app.context_processor
+def inject_refresh():
+    # tells every page how often to fetch new readings (WEB_REFRESH_SECONDS in config.py)
+    return {"refresh_ms": int(max(0.5, config.WEB_REFRESH_SECONDS) * 1000)}
 storage.init_db()
 storage.load_settings()
 garden = Garden()
@@ -163,17 +169,26 @@ def next_schedule(s):
 # ---------------------------------------------------------------------------
 # Background sensor loop
 # ---------------------------------------------------------------------------
+def climate_loop():
+    """DHT11 in its own loop: a missed read never slows down the other sensors."""
+    interval = max(2, config.DHT_INTERVAL_SECONDS)   # the DHT11 needs >= 2 s between reads
+    while True:
+        climate = garden.read_climate()
+        if climate:
+            with state_lock:
+                state["temperature"], state["humidity"] = climate
+                state["updated"] = time.time()
+        time.sleep(interval)
+
+
 def sensor_loop():
     last_log = 0
     last_prune = 0
     while True:
-        climate = garden.read_climate()
         distance = garden.read_tank_distance()
         moisture = garden.read_moisture()
         now = time.time()
         with state_lock:
-            if climate:
-                state["temperature"], state["humidity"] = climate
             if distance is not None:
                 state["tank_distance"] = distance
                 state["water_level"] = distance_to_percent(distance)
@@ -413,6 +428,7 @@ if __name__ == "__main__":
         seed_demo_history()
         last = storage.last_watering()
         last_watered = last["ts"] if last else None
+    threading.Thread(target=climate_loop, daemon=True).start()
     threading.Thread(target=sensor_loop, daemon=True).start()
     print("Smart Garden running - open http://<your-pi-ip>:%d" % config.PORT)
     if garden.simulated:
