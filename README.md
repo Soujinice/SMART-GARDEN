@@ -133,6 +133,29 @@ Then set `MOISTURE_SENSOR = "ads1115"` in `config.py`.
 - Never touch a 5V pin (2 / 4) to any GPIO pin.
 - Keep water away from the Pi and the breadboard.
 
+## Optional: laptop as the web server (smoother)
+
+Split the work between two computers:
+
+| Computer | Runs | Does |
+|---|---|---|
+| Raspberry Pi | `app.py` (Thonny) | Sensors, LED, buzzer, automation, database |
+| Laptop | `laptop_server.py` | Serves the website to every phone/browser and keeps the latest readings in memory |
+
+Browsers talk only to the laptop, so pages load quickly and the Pi only answers the laptop. Watering and automation stay on the Pi, so the garden keeps working when the laptop is off.
+
+**Laptop setup (once):**
+1. Install Python 3 from python.org. On Windows, tick **"Add Python to PATH"**.
+2. Copy the whole project folder to the laptop.
+3. Open a terminal in that folder and run `pip install flask`.
+
+**Every time:**
+1. Start `app.py` on the Pi in Thonny. Note the address it prints, e.g. `http://192.168.1.23:5000`.
+2. On the laptop run `python laptop_server.py 192.168.1.23`, using the Pi's IP. Or set `PI_ADDRESS` at the top of the file once and just run `python laptop_server.py`.
+3. Open the address the laptop prints, e.g. `http://192.168.1.40:8000`, on any phone or laptop on the Wi-Fi.
+
+On Windows, click **Allow** when the firewall asks, so phones can reach the laptop. If the Pi stops, the dashboard shows "Garden offline" and reconnects by itself when `app.py` is running again.
+
 ## Keeping the same address (static IP)
 
 The router gives the Pi its IP address, and it can change after a reboot. The Thonny shell always prints the current one. To keep it fixed, pick one:
@@ -207,7 +230,8 @@ History is stored in `garden.db` (SQLite, built into Python). Readings are saved
 ## Files
 
 ```
-app.py            Flask server, automation engine, API
+app.py            Runs on the Pi: sensors, automation engine, API (and the website)
+laptop_server.py  Optional: runs on a laptop and serves the website, using the Pi for data
 sensors.py        DHT11, HC-SR04, ADS1115 moisture, LED and buzzer drivers (+ simulator)
 storage.py        SQLite history + settings.json
 config.py         Pins, tank size, calibration, safety limits
