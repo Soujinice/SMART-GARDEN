@@ -223,16 +223,21 @@
   });
 
   // -- polling --------------------------------------------------------------
-  function offline() {
+  function offline(reason) {
     $("status").dataset.level = "alert";
     $("status-text").textContent = "Garden offline";
-    $("status-meta").textContent = "Check that app.py is running on the Pi";
+    // the server explains why (wrong IP, app.py not running, different Wi-Fi…)
+    $("status-meta").textContent = reason || "Check that app.py is running on the Pi";
   }
 
   function poll() {
     return SG.json("/api/status")
       .then(function (d) { failures = 0; render(d); })
-      .catch(function () { if (++failures >= 2) offline(); });
+      .catch(function (err) {
+        var reason = err && err.message && !/Failed to fetch|NetworkError|Load failed/i.test(err.message)
+          ? err.message : "";
+        if (++failures >= 2) offline(reason);
+      });
   }
 
   poll();

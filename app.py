@@ -421,6 +421,11 @@ def local_ip():
 def print_addresses():
     ip = local_ip()
     print("")
+    if ip and ip != getattr(config, "PI_IP", ip):
+        print("NOTE: this Pi's IP is %s, but PI_IP in config.py is %s." % (ip, config.PI_IP))
+        print("      Run  sudo bash setup_static_ip.sh  to fix the address,")
+        print("      or set PI_IP = \"%s\" in config.py on the laptop." % ip)
+        print("")
     print("=" * 56)
     print(" Smart Garden is running. Open one of these:")
     if ip and not ip.startswith("127."):

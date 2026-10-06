@@ -10,13 +10,15 @@ Browsers only talk to the laptop. The laptop asks the Pi for new readings twice 
 second and forwards commands (Water Now, Stop, settings) to the Pi.
 
 How to run:
-    1. Start app.py on the Pi (Thonny). It prints the Pi's address.
-    2. On the laptop:  pip install flask
-    3. Put that address in PI_ADDRESS below (or pass it:  python laptop_server.py 192.168.1.23)
-    4. Run:  python laptop_server.py
-    5. Open the address it prints, e.g. http://192.168.1.40:8000
+    1. On the Pi, once:  sudo bash setup_static_ip.sh   -> gives the Pi a fixed IP
+    2. Put that IP in PI_IP in config.py (on the laptop's copy too)
+    3. Start app.py on the Pi (Thonny)
+    4. On the laptop:  pip install flask   (once)
+    5. On the laptop:  python laptop_server.py
+    6. Open the address it prints, e.g. http://localhost:8000
 """
 
+import ipaddress
 import json
 import socket
 import sys
@@ -24,7 +26,6 @@ import threading
 import time
 import urllib.error
 import urllib.request
-from types import SimpleNamespace
 
 from flask import Flask, Response, jsonify, render_template, request
 
@@ -33,7 +34,7 @@ import config
 # ---------------------------------------------------------------------------
 # Settings for the laptop
 # ---------------------------------------------------------------------------
-PI_ADDRESS = "http://raspberrypi.local:5000"   # <-- the address Thonny prints on the Pi
+PI_ADDRESS = "http://%s:%d" % (config.PI_IP, config.PORT)   # from config.py
 PORT = 8000                                    # the laptop's website port
 POLL_SECONDS = 0.5                             # how often the laptop fetches readings from the Pi
 STALE_AFTER_SECONDS = 8                        # older than this = "Garden offline"
@@ -50,6 +51,11 @@ PI = PI_ADDRESS.rstrip("/")
 app = Flask(__name__)
 cache = {"status": None, "at": 0.0, "error": "Connecting to the Raspberry Pi…"}
 
+# Talk to the Pi DIRECTLY. Without this, Python on Windows sends requests through
+# any proxy set in the system's Internet settings (school/work networks, VPNs,
+# antivirus), and that proxy cannot reach a 192.168.x.x device -> "Garden offline".
+_direct = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
 
 @app.context_processor
 def inject_refresh():
@@ -65,13 +71,54 @@ def pi_request(path, method="GET", body=None, timeout=5):
     headers = {"Content-Type": "application/json"} if data else {}
     req = urllib.request.Request(PI + path, data=data, method=method, headers=headers)
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with _direct.open(req, timeout=timeout) as r:
             return r.status, r.read(), r.headers
     except urllib.error.HTTPError as e:            # the Pi answered with an error (e.g. 409)
         return e.code, e.read(), e.headers
     except (urllib.error.URLError, OSError):        # the Pi is off, wrong address, no Wi-Fi
-        msg = {"ok": False, "error": "Raspberry Pi not reachable at %s" % PI}
+        msg = {"ok": False, "error": cache["error"] or "Raspberry Pi not reachable at %s" % PI}
         return 503, json.dumps(msg).encode(), {"Content-Type": "application/json"}
+
+
+def pi_host_port():
+    rest = PI.split("://", 1)[-1]
+    host, _, port = rest.partition(":")
+    return host, int(port or config.PORT)
+
+
+def diagnose():
+    """Works out WHY the Pi can't be reached, in plain words."""
+    host, port = pi_host_port()
+    try:
+        ip = socket.gethostbyname(host)
+    except socket.gaierror:
+        return ("Can't find '%s' on the network. Use the Pi's IP number instead: "
+                "set PI_IP in config.py (e.g. 192.168.1.50)." % host)
+
+    mine = local_ip()
+    if mine:
+        try:
+            same = ipaddress.ip_address(ip) in ipaddress.ip_network(mine + "/16", strict=False)
+        except ValueError:
+            same = True
+        if not same:
+            return ("The laptop (%s) and the Pi (%s) seem to be on different networks. "
+                    "Connect both to the SAME Wi-Fi, or fix PI_IP in config.py." % (mine, ip))
+
+    try:
+        socket.create_connection((ip, port), timeout=3).close()
+    except ConnectionRefusedError:
+        return ("The Pi at %s is on, but app.py is not running (port %d closed). "
+                "Start app.py in Thonny." % (ip, port))
+    except OSError:
+        return ("No answer from %s. Check: the Pi is on, PI_IP in config.py matches the IP "
+                "Thonny prints, and the Wi-Fi allows devices to talk to each other "
+                "(some school/public Wi-Fi and 'guest' networks block it)." % ip)
+
+    code, _, _ = pi_request("/api/status", timeout=5)
+    if code != 200:
+        return "The Pi at %s answered with error %s. Restart app.py." % (ip, code)
+    return None
 
 
 def poll_loop():
@@ -85,9 +132,13 @@ def poll_loop():
                 print("Connected to the Raspberry Pi at %s" % PI)
             was_ok = True
         else:
-            cache["error"] = "Raspberry Pi not reachable at %s" % PI
-            if was_ok is not False:
-                print("Waiting for the Raspberry Pi at %s … (is app.py running?)" % PI)
+            if was_ok is not False:                  # just lost it: find out why (once)
+                reason = diagnose() or "Raspberry Pi not reachable at %s" % PI
+                cache["error"] = reason
+                print("")
+                print("!! Can't reach the Raspberry Pi at %s" % PI)
+                print("   " + reason)
+                print("   (retrying automatically…)")
             was_ok = False
         time.sleep(POLL_SECONDS)
 
@@ -195,7 +246,7 @@ if __name__ == "__main__":
     print("")
     print("=" * 60)
     print(" LAPTOP web server - the Pi does the sensors and watering")
-    print(" Raspberry Pi:  %s" % PI)
+    print(" Raspberry Pi:  %s   (PI_IP in config.py)" % PI)
     print(" Open the website:")
     if ip and not ip.startswith("127."):
         print("   http://%s:%d     (phones/laptops on this Wi-Fi)" % (ip, PORT))

@@ -144,21 +144,39 @@ Split the work between two computers:
 
 Browsers talk only to the laptop, so pages load quickly and the Pi only answers the laptop. Watering and automation stay on the Pi, so the garden keeps working when the laptop is off.
 
-**Laptop setup (once):**
-1. Install Python 3 from python.org. On Windows, tick **"Add Python to PATH"**.
+**Step 1 - give the Pi a fixed IP (once, on the Pi):**
+Open a Terminal on the Pi, go into the project folder and run:
+```bash
+cd ~/SMART-GARDEN
+sudo bash setup_static_ip.sh
+```
+It keeps the IP the Pi has now (or use `sudo bash setup_static_ip.sh 192.168.1.50` to choose one), and writes it into `PI_IP` in `config.py`. Write the IP down. To undo, run `sudo bash setup_static_ip.sh --undo`.
+
+**Step 2 - laptop setup (once):**
+1. Install Python 3 from python.org. On Windows, tick **"Add python.exe to PATH"**.
 2. Copy the whole project folder to the laptop.
-3. Open a terminal in that folder and run `pip install flask`.
+3. Open `config.py` on the laptop and set `PI_IP = "..."` to the Pi's fixed IP from step 1.
+4. Open a terminal in that folder and run `pip install flask`.
 
 **Every time:**
-1. Start `app.py` on the Pi in Thonny. Note the address it prints, e.g. `http://192.168.1.23:5000`.
-2. On the laptop run `python laptop_server.py 192.168.1.23`, using the Pi's IP. Or set `PI_ADDRESS` at the top of the file once and just run `python laptop_server.py`.
-3. Open the address the laptop prints, e.g. `http://192.168.1.40:8000`, on any phone or laptop on the Wi-Fi.
+1. Start `app.py` on the Pi (Thonny).
+2. On the laptop run `python laptop_server.py`.
+3. Open `http://localhost:8000` on the laptop, or the address it prints on a phone.
 
-On Windows, click **Allow** when the firewall asks, so phones can reach the laptop. If the Pi stops, the dashboard shows "Garden offline" and reconnects by itself when `app.py` is running again.
+If the laptop can't reach the Pi, it prints the exact reason, and the dashboard shows the same text:
+
+| Message | Fix |
+|---|---|
+| *app.py is not running (port 5000 closed)* | Start `app.py` in Thonny on the Pi. |
+| *No answer from 192.168.x.x* | `PI_IP` is wrong, the Pi is off, or the Wi-Fi blocks devices from talking to each other (school, public and "guest" networks often do). Try a phone hotspot or home Wi-Fi. |
+| *seem to be on different networks* | Connect the laptop and the Pi to the **same** Wi-Fi. |
+| *Can't find 'name.local'* | Use the IP number in `PI_IP`, not a name. |
+
+The laptop always talks to the Pi directly, even if Windows has a proxy set (school/work networks, VPNs). A proxy used to cause "Garden offline".
 
 ## Keeping the same address (static IP)
 
-The router gives the Pi its IP address, and it can change after a reboot. The Thonny shell always prints the current one. To keep it fixed, pick one:
+The easy way is `sudo bash setup_static_ip.sh` on the Pi (see above). Alternatives:
 
 - **Use the name instead of the number:** `http://raspberrypi.local:5000` (replace `raspberrypi` with your Pi's hostname). This works on most phones and laptops.
 - **Router "DHCP reservation"** (recommended): in your router's settings, reserve the Pi's current IP for it. Nothing changes on the Pi.

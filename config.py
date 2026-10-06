@@ -58,3 +58,8 @@ SETTINGS_FILE = "settings.json"
 # --- Web server --------------------------------------------------------------
 HOST = "0.0.0.0"               # reachable from other devices on your Wi-Fi
 PORT = 5000
+
+# --- Fixed (static) address of the Raspberry Pi --------------------------------
+# Set once with:  sudo bash setup_static_ip.sh   (on the Pi)
+# The laptop (laptop_server.py) connects to this address.
+PI_IP = "192.168.1.50"
