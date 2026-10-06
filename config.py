@@ -24,8 +24,8 @@ BUZZER_TONE_HZ = 2000   # only used for a passive buzzer
 # "simulated": no sensor - realistic demo values (soil dries slowly, watering raises it).
 #              The website marks these values as "Simulated".
 # "ads1115":   a real capacitive soil sensor through an ADS1115 ADC (I2C).
-# None:        hide moisture completely.
-MOISTURE_SENSOR = "simulated"
+# None:        no sensor - moisture shows 0 % and only temperature/schedules water.
+MOISTURE_SENSOR = None         # no moisture hardware: shows 0 % and the moisture rule is off
 MOISTURE_SIM_DRY_PER_MINUTE = 0.6   # simulated drying speed (% per minute)
 ADS1115_ADDRESS = 0x48         # ADDR pin to GND
 ADS1115_CHANNEL = 0            # sensor AOUT -> A0

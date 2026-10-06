@@ -38,7 +38,8 @@
   SG.triggers = {
     manual: { label: "Manual", icon: "fa-hand-pointer" },
     auto: { label: "Auto", icon: "fa-seedling" },
-    schedule: { label: "Schedule", icon: "fa-clock" }
+    schedule: { label: "Schedule", icon: "fa-clock" },
+    heat: { label: "Heat", icon: "fa-temperature-high" }
   };
 
   SG.json = function (url, opts) {
@@ -155,19 +156,9 @@
   }
 
   function applyFallback(data) {
-    if (data.moisture_simulated) {
-      var lbl = document.querySelector('.stat-value[data-key="moisture"] ~ .stat-label');
-      if (lbl) lbl.textContent = "Soil Moisture (sim)";
-    }
-    if (data.has_moisture) return;
-    document.querySelectorAll(".stat[data-fallback]").forEach(function (stat) {
-      var v = stat.querySelector(".stat-value");
-      if (v.dataset.key === stat.dataset.fallback) return;
-      v.dataset.key = stat.dataset.fallback;
-      v.dataset.suffix = "";
-      stat.querySelector(".stat-label").textContent = stat.dataset.fallbackLabel;
-      stat.querySelector(".stat-icon").textContent = stat.dataset.fallbackIcon;
-    });
+    var lbl = document.querySelector('.stat-value[data-key="moisture"] ~ .stat-label');
+    if (lbl && data.moisture_simulated) lbl.textContent = "Soil Moisture (sim)";
+    if (lbl && !data.has_moisture) lbl.textContent = "Soil Moisture (no sensor)";
   }
 
   function render(data, first) {

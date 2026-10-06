@@ -33,6 +33,54 @@
           </div>
         </section>
 
+        <!-- Temperature rule -->
+        <section class="card anim" style="--d: 0.13s" aria-labelledby="heat-title">
+          <div class="card-head">
+            <h2 id="heat-title">Water when it's hot</h2>
+            <label class="switch" title="Temperature watering">
+              <input type="checkbox" id="heat_enabled" />
+              <span></span>
+            </label>
+          </div>
+          <p class="rule-help">Uses the DHT11 temperature. When it reaches the temperature below, the garden waters itself (LED + buzzer), then waits before it can water for heat again.</p>
+
+          <div class="field">
+            <div class="field-head">
+              <label for="heat_threshold">Water at or above</label>
+              <output id="out-heat">--</output>
+            </div>
+            <div class="range-wrap">
+              <input type="range" id="heat_threshold" min="15" max="45" step="1" />
+              <span class="range-now" id="temp-now" hidden title="Current temperature"></span>
+            </div>
+            <div class="range-scale"><span>15 °C</span><span id="temp-now-label"></span><span>45 °C</span></div>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <div class="field-head">
+                <label for="heat_seconds">Water for</label>
+                <output id="out-heat-seconds">--</output>
+              </div>
+              <input type="range" id="heat_seconds" min="{{ cfg.WATER_MIN_SECONDS }}" max="{{ cfg.WATER_MAX_SECONDS }}" step="1" />
+            </div>
+            <div class="field">
+              <div class="field-head"><label for="heat_gap_minutes">Then wait at least</label></div>
+              <select id="heat_gap_minutes">
+                <option value="1">1 minute (demo)</option>
+                <option value="5">5 minutes</option>
+                <option value="15">15 minutes</option>
+                <option value="30">30 minutes</option>
+                <option value="60">1 hour</option>
+                <option value="120">2 hours</option>
+                <option value="240">4 hours</option>
+                <option value="360">6 hours</option>
+                <option value="720">12 hours</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
         <!-- Moisture rule -->
         <section class="card anim" style="--d: 0.16s" aria-labelledby="rule-title">
           <div class="card-head">
@@ -46,7 +94,7 @@
           <p class="notice"><i class="fa-solid fa-circle-info"></i> No soil sensor connected - moisture is simulated for the demo. The soil slowly dries and each watering raises it, so this rule still turns on the LED and buzzer.</p>
           {% endif %}
           {% if not has_moisture %}
-          <p class="notice"><i class="fa-solid fa-circle-info"></i> No soil moisture sensor detected. This rule needs a capacitive sensor + ADS1115 (see README). Daily schedules below work without it.</p>
+          <p class="notice"><i class="fa-solid fa-circle-info"></i><span>No soil moisture sensor connected, so moisture shows 0 % and this rule is switched off. Use <b>Water when it's hot</b> above or a daily schedule instead.</span></p>
           {% endif %}
 
           <div class="field">
@@ -72,6 +120,9 @@
             <div class="field">
               <div class="field-head"><label for="auto_min_gap_minutes">Then wait at least</label></div>
               <select id="auto_min_gap_minutes">
+                <option value="1">1 minute (demo)</option>
+                <option value="5">5 minutes</option>
+                <option value="15">15 minutes</option>
                 <option value="30">30 minutes</option>
                 <option value="60">1 hour</option>
                 <option value="120">2 hours</option>

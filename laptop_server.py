@@ -229,12 +229,13 @@ def local_ip():
 
 
 def port_is_free(port):
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        try:
-            s.bind(("0.0.0.0", port))
-            return True
-        except OSError:
-            return False
+    """True unless another program is really answering on this port.
+    (A plain bind test fails for ~60 s after a restart, which wrongly said 'already running'.)"""
+    try:
+        socket.create_connection(("127.0.0.1", port), timeout=1).close()
+        return False
+    except OSError:
+        return True
 
 
 if __name__ == "__main__":

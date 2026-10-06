@@ -99,12 +99,23 @@
           <section class="card auto-card anim" aria-labelledby="auto-title" style="--d: 0.4s">
             <div class="card-head">
               <h2 id="auto-title">Automatic watering</h2>
-              <label class="switch" title="Water automatically when the soil is dry">
-                <input type="checkbox" id="auto-toggle" />
+            </div>
+            <div class="rule-row" id="heat-row">
+              <span class="rule-icon t-heat"><i class="fa-solid fa-temperature-high" aria-hidden="true"></i></span>
+              <span class="rule-text"><b>Temperature</b><small id="heat-line">--</small></span>
+              <label class="switch" title="Water automatically when it gets hot">
+                <input type="checkbox" id="heat-toggle" aria-label="Water when hot" />
                 <span></span>
               </label>
             </div>
-            <p class="auto-line" id="auto-line">--</p>
+            <div class="rule-row" id="moist-row">
+              <span class="rule-icon t-auto"><i class="fa-solid fa-seedling" aria-hidden="true"></i></span>
+              <span class="rule-text"><b>Soil moisture</b><small id="auto-line">--</small></span>
+              <label class="switch" title="Water automatically when the soil is dry">
+                <input type="checkbox" id="auto-toggle" aria-label="Water when soil is dry" />
+                <span></span>
+              </label>
+            </div>
             <p class="auto-line" id="schedule-line">--</p>
             <a class="text-link" href="/automation">Change settings <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
           </section>

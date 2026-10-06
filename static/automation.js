@@ -1,4 +1,4 @@
-/* Automation settings: moisture rule, daily schedules, presets, alert ranges. */
+/* Automation settings: temperature rule, moisture rule, schedules, presets, alert ranges. */
 (function () {
   "use strict";
 
@@ -9,13 +9,14 @@
   var minS = +root.dataset.minSeconds, maxS = +root.dataset.maxSeconds;
 
   var PRESETS = {
-    herbs: { moisture_threshold: 40, auto_seconds: 5, temp_min: 18, temp_max: 28, humidity_min: 40, humidity_max: 65 },
-    greens: { moisture_threshold: 45, auto_seconds: 6, temp_min: 15, temp_max: 24, humidity_min: 50, humidity_max: 70 },
-    fruiting: { moisture_threshold: 35, auto_seconds: 8, temp_min: 20, temp_max: 30, humidity_min: 45, humidity_max: 70 },
-    succulents: { moisture_threshold: 15, auto_seconds: 4, temp_min: 18, temp_max: 32, humidity_min: 20, humidity_max: 50 }
+    herbs: { heat_threshold: 30, heat_seconds: 5, moisture_threshold: 40, auto_seconds: 5, temp_min: 18, temp_max: 28, humidity_min: 40, humidity_max: 65 },
+    greens: { heat_threshold: 27, heat_seconds: 6, moisture_threshold: 45, auto_seconds: 6, temp_min: 15, temp_max: 24, humidity_min: 50, humidity_max: 70 },
+    fruiting: { heat_threshold: 32, heat_seconds: 8, moisture_threshold: 35, auto_seconds: 8, temp_min: 20, temp_max: 30, humidity_min: 45, humidity_max: 70 },
+    succulents: { heat_threshold: 35, heat_seconds: 4, moisture_threshold: 15, auto_seconds: 4, temp_min: 18, temp_max: 32, humidity_min: 20, humidity_max: 50 }
   };
 
-  var NUMS = ["moisture_threshold", "auto_seconds", "auto_min_gap_minutes",
+  var NUMS = ["heat_threshold", "heat_seconds", "heat_gap_minutes",
+              "moisture_threshold", "auto_seconds", "auto_min_gap_minutes",
               "temp_min", "temp_max", "humidity_min", "humidity_max", "low_water_percent"];
 
   var saved = null;   // last saved settings
@@ -26,6 +27,7 @@
   // -- form <-> draft -------------------------------------------------------
   function fill() {
     $("auto_enabled").checked = draft.auto_enabled && hasMoisture;
+    $("heat_enabled").checked = draft.heat_enabled;
     $("buzzer_enabled").checked = draft.buzzer_enabled;
     $("auto_enabled").disabled = !hasMoisture;
     NUMS.forEach(function (k) { $(k).value = draft[k]; });
@@ -39,8 +41,9 @@
   function outputs() {
     $("out-threshold").textContent = $("moisture_threshold").value + "%";
     $("out-seconds").textContent = $("auto_seconds").value + " s";
-    paintRange($("moisture_threshold"));
-    paintRange($("auto_seconds"));
+    $("out-heat").textContent = $("heat_threshold").value + " °C";
+    $("out-heat-seconds").textContent = $("heat_seconds").value + " s";
+    ["moisture_threshold", "auto_seconds", "heat_threshold", "heat_seconds"].forEach(function (k) { paintRange($(k)); });
   }
 
   // Filled part of the slider track
@@ -51,6 +54,7 @@
 
   function readForm() {
     draft.auto_enabled = $("auto_enabled").checked;
+    draft.heat_enabled = $("heat_enabled").checked;
     draft.buzzer_enabled = $("buzzer_enabled").checked;
     NUMS.forEach(function (k) { var v = parseInt($(k).value, 10); if (!isNaN(v)) draft[k] = v; });
   }
@@ -172,16 +176,24 @@
   });
 
   // -- live moisture marker on the threshold slider ----------------------------
-  function showMoisture() {
-    if (!hasMoisture) return;
+  // Live markers: where the current reading sits on each slider
+  function placeMarker(sliderId, markerId, labelId, value, text) {
+    var slider = $(sliderId), el = $(markerId);
+    var p = (value - slider.min) / (slider.max - slider.min) * 100;
+    el.style.left = Math.max(0, Math.min(100, p)) + "%";
+    el.hidden = false;
+    $(labelId).textContent = text;
+  }
+
+  function showLive() {
     SG.json("/api/status").then(function (d) {
-      if (d.moisture === null) return;
-      var el = $("moisture-now");
-      var slider = $("moisture_threshold");
-      var p = (d.moisture - slider.min) / (slider.max - slider.min) * 100;
-      el.style.left = Math.max(0, Math.min(100, p)) + "%";
-      el.hidden = false;
-      $("now-label").textContent = "Now " + d.moisture + "%";
+      if (d.temperature !== null) {
+        placeMarker("heat_threshold", "temp-now", "temp-now-label", d.temperature,
+          "Now " + Math.round(d.temperature) + " °C");
+      }
+      if (hasMoisture && d.moisture !== null) {
+        placeMarker("moisture_threshold", "moisture-now", "now-label", d.moisture, "Now " + d.moisture + "%");
+      }
     }).catch(function () {});
   }
 
@@ -189,7 +201,7 @@
     saved = clone(s);
     draft = clone(s);
     fill();
-    showMoisture();
-    setInterval(function () { if (!document.hidden) showMoisture(); }, Math.max(SG.refreshMs, 2000));
+    showLive();
+    setInterval(function () { if (!document.hidden) showLive(); }, Math.max(SG.refreshMs, 2000));
   }).catch(function (e) { SG.toast(e.message, "error"); });
 })();

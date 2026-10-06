@@ -7,11 +7,12 @@ An automated plant-monitoring system for a **Raspberry Pi 3 B**. It tracks tempe
 | `/` | Landing page with live readings |
 | `/dashboard` | Live gauges (moisture, temperature, humidity, tank), **Water Now** + **Stop**, auto-watering on/off, recent waterings |
 | `/history` | 24-hour / 7-day charts with watering markers, waterings per day, full watering log, CSV export |
-| `/automation` | Plant presets, moisture threshold, daily schedules, alert ranges |
+| `/automation` | Plant presets, temperature rule, moisture rule, daily schedules, alert ranges |
 
 **How automatic watering works**
 
-- **Soil moisture rule:** when moisture drops below your threshold, the garden waters for the time you set (LED on + beeps). It then waits (e.g. 1 hour) so the water can soak in before checking again. This needs the optional moisture sensor.
+- **Temperature rule ("Water when it's hot"):** checked once a minute. When the DHT11 reads at or above your temperature (default **30 °C**), the garden waters for the set time (LED on + beeps). It then waits (default 1 hour, or 1 minute for a demo) before it can water for heat again. Turn it on or off on the Dashboard or the Automation page.
+- **Soil moisture rule:** only with a real moisture sensor. Without one (`MOISTURE_SENSOR = None`, the default), moisture shows **0 %** and this rule stays off, so the 0 never triggers watering.
 - **Daily schedule:** water at fixed times (e.g. 08:00 for 5 s). This works without a moisture sensor.
 - **Safety:** watering is refused when the tank is low, each watering lasts at most 15 s, and there are at least 30 s between waterings. A skipped watering is recorded in the log with the reason.
 

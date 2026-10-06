@@ -120,11 +120,31 @@ def check_alert_beep(snap):
 # ---------------------------------------------------------------------------
 fired_schedules = set()   # "YYYY-MM-DD HH:MM" already handled
 last_auto_check = 0
+last_heat_check = 0
+
+
+def run_heat_rule(s):
+    """Temperature rule: when the DHT11 reads at or above heat_threshold, water."""
+    global last_heat_check
+    if not s["heat_enabled"] or time.time() - last_heat_check < 60:   # check once a minute
+        return
+    last_heat_check = time.time()
+    with state_lock:
+        temp, busy = state["temperature"], state["watering"]
+    if temp is None or busy or temp < s["heat_threshold"]:
+        return
+    if last_watered and time.time() - last_watered < s["heat_gap_minutes"] * 60:
+        return   # watered recently - don't flood the plants on a long hot day
+    error = start_watering(s["heat_seconds"], "heat")
+    if error and "wait" not in error:
+        log_skipped("heat", error)
+        last_heat_check = time.time() + 30 * 60   # don't log the same problem every minute
 
 
 def run_automation():
     global last_auto_check
     s = storage.get_settings()
+    run_heat_rule(s)
     now = datetime.now()
 
     # 1) Fixed daily schedules
@@ -302,7 +322,7 @@ def api_status():
     return jsonify(
         temperature=s["temperature"],
         humidity=s["humidity"],
-        moisture=s["moisture"],
+        moisture=s["moisture"] if garden.has_moisture else 0,   # no sensor -> shown as 0
         water_level=s["water_level"],
         status=level,
         message=message,
@@ -361,8 +381,12 @@ def api_history():
         for k in ("temperature", "humidity", "moisture", "water_level"):
             if p[k] is not None:
                 p[k] = round(p[k], 1)
+    if not garden.has_moisture:          # no sensor -> moisture shown as 0
+        for p in points:
+            p["moisture"] = 0
     waterings = [w for w in storage.waterings_since(since) if w["completed"]]
-    return jsonify(points=points, waterings=waterings, since=since)
+    return jsonify(points=points, waterings=waterings, since=since,
+                   has_moisture=garden.has_moisture)
 
 
 @app.route("/api/log")
@@ -437,12 +461,13 @@ def print_addresses():
 
 
 def port_is_free(port):
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        try:
-            s.bind(("0.0.0.0", port))
-            return True
-        except OSError:
-            return False
+    """True unless another program is really answering on this port.
+    (A plain bind test fails for ~60 s after a restart, which wrongly said 'already running'.)"""
+    try:
+        socket.create_connection(("127.0.0.1", port), timeout=1).close()
+        return False
+    except OSError:
+        return True
 
 
 if __name__ == "__main__":

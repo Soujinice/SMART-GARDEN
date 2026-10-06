@@ -23,6 +23,10 @@ DEFAULT_SETTINGS = {
     "moisture_threshold": 35,      # %
     "auto_seconds": 5,             # how long one automatic watering lasts
     "auto_min_gap_minutes": 60,    # let water soak in before watering again
+    "heat_enabled": True,          # water when it gets hot (DHT11 temperature)
+    "heat_threshold": 30,          # °C - water at or above this temperature
+    "heat_seconds": 5,             # how long one heat watering lasts
+    "heat_gap_minutes": 60,        # wait at least this long before watering for heat again
     "schedules": [                 # fixed daily waterings (work without a moisture sensor)
         {"time": "08:00", "seconds": 5, "enabled": False},
     ],
@@ -151,7 +155,15 @@ def save_settings(new):
     if "auto_seconds" in new:
         s["auto_seconds"] = _num(new["auto_seconds"], config.WATER_MIN_SECONDS, config.WATER_MAX_SECONDS)
     if "auto_min_gap_minutes" in new:
-        s["auto_min_gap_minutes"] = _num(new["auto_min_gap_minutes"], 10, 1440)
+        s["auto_min_gap_minutes"] = _num(new["auto_min_gap_minutes"], 1, 1440)
+    if "heat_enabled" in new:
+        s["heat_enabled"] = bool(new["heat_enabled"])
+    if "heat_threshold" in new:
+        s["heat_threshold"] = _num(new["heat_threshold"], 15, 50)
+    if "heat_seconds" in new:
+        s["heat_seconds"] = _num(new["heat_seconds"], config.WATER_MIN_SECONDS, config.WATER_MAX_SECONDS)
+    if "heat_gap_minutes" in new:
+        s["heat_gap_minutes"] = _num(new["heat_gap_minutes"], 1, 1440)
     if "low_water_percent" in new:
         s["low_water_percent"] = _num(new["low_water_percent"], 0, 50)
     for key, lo, hi in (("temp_min", 0, 50), ("temp_max", 0, 50),

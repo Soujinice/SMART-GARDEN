@@ -75,7 +75,8 @@
 
     // Moisture
     if (!d.has_moisture) {
-      setGauge("moisture", null, "none", "No sensor connected");
+      setGauge("moisture", 0, "none", "No sensor connected");
+      if (gauges.moisture && gauges.moisture.mark) gauges.moisture.mark.style.display = "none";
     } else {
       var m = d.moisture;
       var dry = m !== null && m < s.moisture_threshold;
@@ -105,14 +106,24 @@
     renderWatering(d);
 
     // Automation summary
+    var heat = $("heat-toggle");
+    if (document.activeElement !== heat) heat.checked = s.heat_enabled;
+    var hot = d.temperature !== null && d.temperature >= s.heat_threshold;
+    $("heat-line").innerHTML = s.heat_enabled
+      ? "Waters " + s.heat_seconds + " s at <b>" + s.heat_threshold + " °C</b> or hotter" +
+        (hot ? ' · <span class="hot-now">hot now</span>' : "")
+      : "Off";
+    $("heat-row").classList.toggle("is-off", !s.heat_enabled);
+
     var toggle = $("auto-toggle");
-    toggle.checked = s.auto_enabled && d.has_moisture;
+    if (document.activeElement !== toggle) toggle.checked = s.auto_enabled && d.has_moisture;
     toggle.disabled = !d.has_moisture;
     $("auto-line").innerHTML = !d.has_moisture
-      ? '<i class="fa-solid fa-seedling"></i> Needs a soil moisture sensor'
+      ? "No sensor - shows 0 %, rule off"
       : s.auto_enabled
-        ? '<i class="fa-solid fa-seedling"></i> Waters ' + s.auto_seconds + " s when soil drops below <b>" + s.moisture_threshold + "%</b>"
-        : '<i class="fa-solid fa-seedling"></i> Off - only schedules and manual watering';
+        ? "Waters " + s.auto_seconds + " s when soil drops below <b>" + s.moisture_threshold + "%</b>"
+        : "Off";
+    $("moist-row").classList.toggle("is-off", !d.has_moisture || !s.auto_enabled);
     $("schedule-line").innerHTML = '<i class="fa-solid fa-clock"></i> ' + (d.next_schedule
       ? "Next schedule: <b>" + SG.day(d.next_schedule) + " " + SG.time(d.next_schedule) + "</b>"
       : "No daily schedule set");
@@ -213,6 +224,13 @@
 
   $("stop-btn").addEventListener("click", function () {
     SG.post("/api/stop").then(function () { SG.toast("Watering stopped", "info"); poll(); });
+  });
+
+  $("heat-toggle").addEventListener("change", function () {
+    var on = this.checked;
+    SG.post("/api/settings", { heat_enabled: on })
+      .then(function () { SG.toast("Temperature watering " + (on ? "on" : "off"), "ok"); poll(); })
+      .catch(function (err) { SG.toast(err.message, "error"); });
   });
 
   $("auto-toggle").addEventListener("change", function () {

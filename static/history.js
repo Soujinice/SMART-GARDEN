@@ -50,7 +50,9 @@
     var m = METRICS[metric];
     var pts = data.points.filter(function (p) { return p[metric] !== null; });
     $("legend-metric").textContent = m.label;
-    $("legend-threshold").hidden = metric !== "moisture";
+    var heatLine = metric === "temperature" && settings && settings.heat_enabled;
+    $("legend-threshold").hidden = !(metric === "moisture" || heatLine);
+    $("legend-threshold-text").textContent = heatLine ? "Heat watering temperature" : "Auto-water threshold";
 
     // summary tiles
     var vals = pts.map(function (p) { return p[metric]; });
@@ -71,8 +73,9 @@
     var lo, hi;
     if (m.fixed) { lo = m.fixed[0]; hi = m.fixed[1]; }
     else {
-      lo = Math.floor((Math.min.apply(null, vals) - 2) / 5) * 5;
-      hi = Math.ceil((Math.max.apply(null, vals) + 2) / 5) * 5;
+      var span = vals.concat(heatLine ? [settings.heat_threshold] : []);   // keep the heat line in view
+      lo = Math.floor((Math.min.apply(null, span) - 2) / 5) * 5;
+      hi = Math.ceil((Math.max.apply(null, span) + 2) / 5) * 5;
     }
     var X = function (t) { return P.l + (t - x0) / (x1 - x0) * (W - P.l - P.r); };
     var Y = function (v) { return P.t + (1 - (v - lo) / (hi - lo)) * (H - P.t - P.b); };
@@ -96,9 +99,9 @@
       el("text", { x: X(t), y: H - 8, "text-anchor": "middle" }, g).textContent = lbl;
     }
 
-    // moisture threshold
-    if (metric === "moisture" && settings) {
-      var ty = Y(settings.moisture_threshold);
+    // threshold line: moisture rule, or the temperature that triggers heat watering
+    if ((metric === "moisture" && settings) || heatLine) {
+      var ty = Y(heatLine ? settings.heat_threshold : settings.moisture_threshold);
       el("line", { class: "c-threshold", x1: P.l, x2: W - P.r, y1: ty, y2: ty }, svg);
     }
 
@@ -197,9 +200,10 @@
   function loadHistory() {
     return SG.json("/api/history?range=" + range).then(function (d) {
       data = d;
-      // No moisture sensor: start on humidity instead of an empty chart.
-      if (metric === "moisture" && !d.points.some(function (p) { return p.moisture !== null; })) {
-        var btn = document.querySelector('#metric-tabs [data-metric="humidity"]');
+      // No moisture sensor (moisture is just 0): start on temperature instead.
+      if (metric === "moisture" && d.has_moisture === false && !loadHistory.switched) {
+        loadHistory.switched = true;
+        var btn = document.querySelector('#metric-tabs [data-metric="temperature"]');
         if (btn) btn.click();
         return;
       }
